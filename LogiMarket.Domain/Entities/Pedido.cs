@@ -25,7 +25,7 @@ public class Pedido : ICloneable
     public string EstrategiaDescuentoAplicada { get; private set; } = "NORMAL";
 
     private IEstadoPedido _estado = default!;
-    public string EstadoActual => _estado.Nombre;
+    public string EstadoActual { get; private set; } = "BORRADOR";
 
     private readonly List<PedidoDetalle> _detalles = new();
     public IReadOnlyCollection<PedidoDetalle> Detalles => _detalles.AsReadOnly();
@@ -137,10 +137,11 @@ public class Pedido : ICloneable
         FechaEntrega = DateTime.UtcNow;
     }
     public void Cancelar() => _estado.Cancelar(new PedidoContext(this, CambiarEstado));
-
+    // metodo para cambiar el estado del pedido, se llama desde los estados concretos
     private void CambiarEstado(IEstadoPedido nuevo)
     {
         _estado = nuevo;
+        EstadoActual = nuevo.Nombre;
         Version++;
     }
 

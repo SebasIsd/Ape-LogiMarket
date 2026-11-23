@@ -10,9 +10,17 @@ public class DevolucionConfiguration : IEntityTypeConfiguration<Devolucion>
     {
         b.ToTable("Devoluciones");
         b.HasKey(x => x.Id);
-        b.HasIndex(x => x.PedidoId).IsUnique(); // una sola devolución por pedido
+        b.HasIndex(x => x.PedidoId).IsUnique();
         b.Property(x => x.Motivo).HasConversion<string>().HasMaxLength(20);
-        b.OwnsOne(x => x.Reembolso, o => o.Property(p => p.Amount).HasPrecision(18, 2).HasColumnName("Reembolso"));
+
+        // CORREGIDO: usar HasConversion en lugar de OwnsOne
+        b.Property(x => x.Reembolso)
+         .HasConversion(
+             v => v.Amount,
+             v => new Domain.ValueObjects.Money(v))
+         .HasColumnType("DECIMAL(18,2)")
+         .HasColumnName("Reembolso");
+
         b.Property(x => x.FechaSolicitud);
         b.Property(x => x.Aceptada);
     }

@@ -3,7 +3,7 @@
 public class KitComponente
 {
     public Guid Id { get; private set; }
-    public IElementoCatalogo Elemento { get; }
+    public IElementoCatalogo Elemento { get; private set; } = default!; 
     public int Cantidad { get; }
 
     protected KitComponente() { } // EF

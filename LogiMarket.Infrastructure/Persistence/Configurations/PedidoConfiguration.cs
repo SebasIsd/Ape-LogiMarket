@@ -13,10 +13,28 @@ public class PedidoConfiguration : IEntityTypeConfiguration<Pedido>
         b.Property(x => x.EstadoActual).HasMaxLength(20).IsRequired();
         b.Property(x => x.TipoEnvio).HasMaxLength(20).IsRequired();
         b.Property(x => x.EstrategiaDescuentoAplicada).HasMaxLength(20);
-        b.OwnsOne(x => x.Subtotal, o => o.Property(p => p.Amount).HasPrecision(18, 2).HasColumnName("Subtotal"));
-        b.OwnsOne(x => x.Descuento, o => o.Property(p => p.Amount).HasPrecision(18, 2).HasColumnName("Descuento"));
-        b.OwnsOne(x => x.TarifaEnvio, o => o.Property(p => p.Amount).HasPrecision(18, 2).HasColumnName("TarifaEnvio"));
-        b.OwnsOne(x => x.Total, o => o.Property(p => p.Amount).HasPrecision(18, 2).HasColumnName("Total"));
+
+        // CORREGIDO: todos los Money con HasConversion
+        b.Property(x => x.Subtotal)
+         .HasConversion(v => v.Amount, v => new Domain.ValueObjects.Money(v))
+         .HasColumnType("DECIMAL(18,2)")
+         .HasColumnName("Subtotal");
+
+        b.Property(x => x.Descuento)
+         .HasConversion(v => v.Amount, v => new Domain.ValueObjects.Money(v))
+         .HasColumnType("DECIMAL(18,2)")
+         .HasColumnName("Descuento");
+
+        b.Property(x => x.TarifaEnvio)
+         .HasConversion(v => v.Amount, v => new Domain.ValueObjects.Money(v))
+         .HasColumnType("DECIMAL(18,2)")
+         .HasColumnName("TarifaEnvio");
+
+        b.Property(x => x.Total)
+         .HasConversion(v => v.Amount, v => new Domain.ValueObjects.Money(v))
+         .HasColumnType("DECIMAL(18,2)")
+         .HasColumnName("Total");
+
         b.Property(x => x.Version).IsConcurrencyToken();
 
         b.HasOne(x => x.Cliente).WithMany().HasForeignKey(x => x.ClienteId).OnDelete(DeleteBehavior.Restrict);
@@ -24,7 +42,6 @@ public class PedidoConfiguration : IEntityTypeConfiguration<Pedido>
         b.HasOne(x => x.Despacho).WithOne().HasForeignKey<Despacho>(d => d.PedidoId).OnDelete(DeleteBehavior.Restrict);
         b.HasOne(x => x.Devolucion).WithOne().HasForeignKey<Devolucion>(d => d.PedidoId).OnDelete(DeleteBehavior.Restrict);
 
-        b.Ignore(x => x.Detalles); // se mapea aparte
-        //b.Ignore(p => p.EstadoActual); // en realidad sí lo persistimos, quitar este Ignore
+        b.Ignore(x => x.Detalles);
     }
 }

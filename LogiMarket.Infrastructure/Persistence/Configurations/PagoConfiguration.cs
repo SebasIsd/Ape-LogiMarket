@@ -15,7 +15,15 @@ public class PagoConfiguration : IEntityTypeConfiguration<Pago>
         b.Property(x => x.ClaveIdempotencia).HasMaxLength(80).IsRequired();
         b.Property(x => x.Referencia).HasMaxLength(80).IsRequired();
         b.Property(x => x.Proveedor).HasMaxLength(60);
-        b.OwnsOne(x => x.Monto, o => o.Property(p => p.Amount).HasPrecision(18, 2).HasColumnName("Monto"));
+
+        // CORREGIDO, para que EF Core pueda mapear correctamente el objeto de valor Money a un tipo decimal en la base de datos
+        b.Property(x => x.Monto)
+         .HasConversion(
+             v => v.Amount,
+             v => new Domain.ValueObjects.Money(v))
+         .HasColumnType("DECIMAL(18,2)")
+         .HasColumnName("Monto");
+
         b.Property(x => x.Fecha);
     }
 }

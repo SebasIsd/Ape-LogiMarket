@@ -13,7 +13,10 @@ public class ProductoSimpleConfiguration : IEntityTypeConfiguration<ProductoSimp
         b.HasIndex(x => x.Sku).IsUnique();
         b.Property(x => x.Sku).HasMaxLength(20).IsRequired();
         b.Property(x => x.Nombre).HasMaxLength(120).IsRequired();
-        b.OwnsOne(x => x.Precio, p => p.Property(pp => pp.Amount).HasPrecision(18, 2).HasColumnName("Precio"));
+        b.Property(x => x.Precio)
+            .HasConversion(v => v.Amount, v => new Domain.ValueObjects.Money(v))
+            .HasColumnType("DECIMAL(18,2)")
+            .HasColumnName("Precio");
         b.Property(x => x.Stock);
         b.Property(x => x.PesoKg).HasPrecision(10, 2);
         b.Ignore(x => x.EsKit);

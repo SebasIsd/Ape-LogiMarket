@@ -1,5 +1,6 @@
 ﻿using LogiMarket.Application.Ports.Persistence;
 using LogiMarket.Domain.Entities;
+using LogiMarket.Domain.States;
 using Microsoft.EntityFrameworkCore;
 
 namespace LogiMarket.Infrastructure.Persistence.Repositories;
@@ -32,7 +33,7 @@ public class RepositorioPedido : IRepositorioPedido
         foreach (var d in detalles) lista.Add(d);
 
         // Restaurar estado
-        var estado = pedido.EstadoActual switch
+        IEstadoPedido estado = pedido.EstadoActual switch
         {
             "BORRADOR" => new Domain.States.BorradorState(),
             "VALIDADO" => new Domain.States.ValidadoState(),
@@ -65,7 +66,7 @@ public class RepositorioPedido : IRepositorioPedido
             lista.Clear();
             foreach (var d in detalles) lista.Add(d);
 
-            var estado = p.EstadoActual switch
+            IEstadoPedido estado = p.EstadoActual switch
             {
                 "BORRADOR" => new Domain.States.BorradorState(),
                 "VALIDADO" => new Domain.States.ValidadoState(),

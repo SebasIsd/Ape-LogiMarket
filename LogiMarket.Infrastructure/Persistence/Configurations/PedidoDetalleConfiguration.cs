@@ -14,8 +14,14 @@ public class PedidoDetalleConfiguration : IEntityTypeConfiguration<PedidoDetalle
         b.Property(x => x.Nombre).HasMaxLength(120).IsRequired();
         b.Property(x => x.EsKit);
         b.Property(x => x.Cantidad);
-        b.OwnsOne(x => x.PrecioUnitarioInstantanea,
-            o => o.Property(p => p.Amount).HasPrecision(18, 2).HasColumnName("PrecioUnitario"));
+
+        // CORREGIDO
+        b.Property(x => x.PrecioUnitarioInstantanea)
+         .HasConversion(
+             v => v.Amount,
+             v => new Domain.ValueObjects.Money(v))
+         .HasColumnType("DECIMAL(18,2)")
+         .HasColumnName("PrecioUnitario");
 
         b.HasOne<Pedido>().WithMany().HasForeignKey(x => x.PedidoId).OnDelete(DeleteBehavior.Cascade);
     }

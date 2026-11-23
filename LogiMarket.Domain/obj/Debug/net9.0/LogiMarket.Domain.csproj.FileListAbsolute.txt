@@ -9,3 +9,4 @@ C:\Users\Fabian\Documents\SOFTWARE\5SWA\Patrones de Software\LogiMarket360\LogiM
 C:\Users\Fabian\Documents\SOFTWARE\5SWA\Patrones de Software\LogiMarket360\LogiMarket.Domain\obj\Debug\net9.0\refint\LogiMarket.Domain.dll
 C:\Users\Fabian\Documents\SOFTWARE\5SWA\Patrones de Software\LogiMarket360\LogiMarket.Domain\obj\Debug\net9.0\LogiMarket.Domain.pdb
 C:\Users\Fabian\Documents\SOFTWARE\5SWA\Patrones de Software\LogiMarket360\LogiMarket.Domain\obj\Debug\net9.0\ref\LogiMarket.Domain.dll
+C:\Users\Fabian\Documents\SOFTWARE\5SWA\Patrones de Software\LogiMarket360\LogiMarket.Domain\obj\Debug\net9.0\LogiMarket.Domain.sourcelink.json
