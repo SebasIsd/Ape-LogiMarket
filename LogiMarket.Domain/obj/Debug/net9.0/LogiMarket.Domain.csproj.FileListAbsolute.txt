@@ -1,0 +1,11 @@
+C:\Users\Fabian\Documents\SOFTWARE\5SWA\Patrones de Software\LogiMarket360\LogiMarket.Domain\bin\Debug\net9.0\LogiMarket.Domain.deps.json
+C:\Users\Fabian\Documents\SOFTWARE\5SWA\Patrones de Software\LogiMarket360\LogiMarket.Domain\bin\Debug\net9.0\LogiMarket.Domain.dll
+C:\Users\Fabian\Documents\SOFTWARE\5SWA\Patrones de Software\LogiMarket360\LogiMarket.Domain\bin\Debug\net9.0\LogiMarket.Domain.pdb
+C:\Users\Fabian\Documents\SOFTWARE\5SWA\Patrones de Software\LogiMarket360\LogiMarket.Domain\obj\Debug\net9.0\LogiMarket.Domain.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\Fabian\Documents\SOFTWARE\5SWA\Patrones de Software\LogiMarket360\LogiMarket.Domain\obj\Debug\net9.0\LogiMarket.Domain.AssemblyInfoInputs.cache
+C:\Users\Fabian\Documents\SOFTWARE\5SWA\Patrones de Software\LogiMarket360\LogiMarket.Domain\obj\Debug\net9.0\LogiMarket.Domain.AssemblyInfo.cs
+C:\Users\Fabian\Documents\SOFTWARE\5SWA\Patrones de Software\LogiMarket360\LogiMarket.Domain\obj\Debug\net9.0\LogiMarket.Domain.csproj.CoreCompileInputs.cache
+C:\Users\Fabian\Documents\SOFTWARE\5SWA\Patrones de Software\LogiMarket360\LogiMarket.Domain\obj\Debug\net9.0\LogiMarket.Domain.dll
+C:\Users\Fabian\Documents\SOFTWARE\5SWA\Patrones de Software\LogiMarket360\LogiMarket.Domain\obj\Debug\net9.0\refint\LogiMarket.Domain.dll
+C:\Users\Fabian\Documents\SOFTWARE\5SWA\Patrones de Software\LogiMarket360\LogiMarket.Domain\obj\Debug\net9.0\LogiMarket.Domain.pdb
+C:\Users\Fabian\Documents\SOFTWARE\5SWA\Patrones de Software\LogiMarket360\LogiMarket.Domain\obj\Debug\net9.0\ref\LogiMarket.Domain.dll
