@@ -1,16 +1,15 @@
 ﻿using LogiMarket.Application.Ports.Persistence;
-using LogiMarket.Application.Validation;
 using LogiMarket.Domain.Entities;
 using LogiMarket.Domain.Enums;
 using LogiMarket.WinForms.Mediator;
+using LogiMarket.WinForms.UI;
 using System.Windows.Forms;
 
 namespace LogiMarket.WinForms.Forms;
 
-public class FrmClientes : UserControl, IViewRefrescable
+public partial class FrmClientes : UserControl, IViewRefrescable
 {
     // --- Componentes ---
-    private Label lbBusqueda;
     private TextBox txtBusqueda;
     private Button btnBuscar;
     private Button btnNuevo;
@@ -18,19 +17,15 @@ public class FrmClientes : UserControl, IViewRefrescable
     private Button btnDesactivar;
     private DataGridView dgvClientes;
     private GroupBox grpFormulario;
-    private Label lbIdentificacion;
     private TextBox txtIdentificacion;
-    private Label lbNombre;
     private TextBox txtNombre;
-    private Label lbCorreo;
     private TextBox txtCorreo;
-    private Label lbTelefono;
     private TextBox txtTelefono;
-    private Label lbCategoria;
     private ComboBox cmbCategoria;
     private Button btnGuardar;
     private Button btnCancelar;
     private TableLayoutPanel pnlRaiz;
+    private Panel pnlSuperior;
     private FlowLayoutPanel pnlBotonera;
 
     private readonly IRepositorioCliente _repo;
@@ -49,9 +44,9 @@ public class FrmClientes : UserControl, IViewRefrescable
 
     private void InicializarComponentes()
     {
-        BackColor = Color.FromArgb(245, 247, 250);
+        BackColor = UIHelper.ColorGrisClaro;
 
-        // --- Layout principal: arriba grid, abajo formulario ---
+        // --- Layout: grid (60%) + formulario (40%) ---
         pnlRaiz = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
@@ -59,83 +54,43 @@ public class FrmClientes : UserControl, IViewRefrescable
             RowCount = 2,
             Padding = new Padding(15)
         };
-        pnlRaiz.RowStyles.Add(new RowStyle(SizeType.Percent, 55));  // Grid
-        pnlRaiz.RowStyles.Add(new RowStyle(SizeType.Percent, 45));  // Formulario
+        pnlRaiz.RowStyles.Add(new RowStyle(SizeType.Percent, 60));
+        pnlRaiz.RowStyles.Add(new RowStyle(SizeType.Percent, 40));
 
         // --- Panel superior: búsqueda + grid ---
-        var pnlSuperior = new Panel { Dock = DockStyle.Fill, Padding = new Padding(0, 0, 0, 10) };
+        pnlSuperior = new Panel { Dock = DockStyle.Fill };
 
-        lbBusqueda = new Label
-        {
-            Text = "Buscar:",
-            Font = new Font("Segoe UI", 9, FontStyle.Bold),
-            AutoSize = true,
-            Location = new Point(0, 8)
-        };
+        var lbBusqueda = UIHelper.CrearLabel("Buscar:", negrita: true);
+        lbBusqueda.Location = new Point(0, 8);
 
-        txtBusqueda = new TextBox
-        {
-            Location = new Point(55, 5),
-            Width = 250,
-            Font = new Font("Segoe UI", 10)
-        };
-        txtBusqueda.KeyDown += async (_, e) =>
-        {
-            if (e.KeyCode == Keys.Enter) await CargarClientesAsync();
-        };
+        txtBusqueda = UIHelper.CrearTextBox(250);
+        txtBusqueda.Location = new Point(55, 5);
+        txtBusqueda.KeyDown += async (_, e) => { if (e.KeyCode == Keys.Enter) await CargarClientesAsync(); };
 
-        btnBuscar = new Button
-        {
-            Text = "Buscar",
-            Location = new Point(315, 4),
-            Width = 80,
-            Height = 28,
-            BackColor = Color.FromArgb(30, 120, 200),
-            ForeColor = Color.White,
-            FlatStyle = FlatStyle.Flat
-        };
-        btnBuscar.FlatAppearance.BorderSize = 0;
+        btnBuscar = UIHelper.CrearBotonPrimario("Buscar", 80);
+        btnBuscar.Location = new Point(315, 4);
         btnBuscar.Click += async (_, _) => await CargarClientesAsync();
 
-        btnNuevo = new Button
-        {
-            Text = "+ Nuevo",
-            Location = new Point(405, 4),
-            Width = 80,
-            Height = 28,
-            BackColor = Color.FromArgb(40, 160, 80),
-            ForeColor = Color.White,
-            FlatStyle = FlatStyle.Flat
-        };
-        btnNuevo.FlatAppearance.BorderSize = 0;
+        btnNuevo = UIHelper.CrearBotonSecundario("+ Nuevo", 80);
+        btnNuevo.Location = new Point(405, 4);
         btnNuevo.Click += (_, _) => LimpiarFormulario();
 
-        dgvClientes = new DataGridView
-        {
-            Dock = DockStyle.Fill,
-            ReadOnly = true,
-            AllowUserToAddRows = false,
-            AllowUserToDeleteRows = false,
-            SelectionMode = DataGridViewSelectionMode.FullRowSelect,
-            MultiSelect = false,
-            AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
-            BackgroundColor = Color.White,
-            BorderStyle = BorderStyle.FixedSingle,
-            Margin = new Padding(0, 40, 0, 0)
-        };
+        dgvClientes = UIHelper.CrearDataGridView();
+        dgvClientes.Location = new Point(0, 40);
+        dgvClientes.Size = new Size(pnlSuperior.Width - 20, pnlSuperior.Height - 50);
+        dgvClientes.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom;
         dgvClientes.SelectionChanged += DgvClientes_SelectionChanged;
 
         pnlSuperior.Controls.AddRange(new Control[] { lbBusqueda, txtBusqueda, btnBuscar, btnNuevo, dgvClientes });
+        pnlSuperior.Resize += (_, _) =>
+        {
+            dgvClientes.Size = new Size(pnlSuperior.Width - 20, pnlSuperior.Height - 50);
+        };
         pnlRaiz.Controls.Add(pnlSuperior, 0, 0);
 
         // --- Panel inferior: formulario ---
-        grpFormulario = new GroupBox
-        {
-            Text = "Datos del cliente",
-            Dock = DockStyle.Fill,
-            Font = new Font("Segoe UI", 9, FontStyle.Bold),
-            ForeColor = Color.FromArgb(30, 60, 90)
-        };
+        grpFormulario = UIHelper.CrearGroupBox("Datos del cliente");
+        grpFormulario.Dock = DockStyle.Fill;
 
         var pnlFormulario = new TableLayoutPanel
         {
@@ -147,39 +102,33 @@ public class FrmClientes : UserControl, IViewRefrescable
         pnlFormulario.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120));
         pnlFormulario.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         for (int i = 0; i < 5; i++)
-            pnlFormulario.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
+            pnlFormulario.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
 
-        lbIdentificacion = new Label { Text = "Identificación:", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, Font = new Font("Segoe UI", 9) };
-        txtIdentificacion = new TextBox { Dock = DockStyle.Fill, Height = 28, Font = new Font("Segoe UI", 10) };
+        pnlFormulario.Controls.Add(UIHelper.CrearLabel("Identificación:", negrita: true), 0, 0);
+        txtIdentificacion = UIHelper.CrearTextBox();
+        txtIdentificacion.Dock = DockStyle.Fill;
+        pnlFormulario.Controls.Add(txtIdentificacion, 1, 0);
 
-        lbNombre = new Label { Text = "Nombre:", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, Font = new Font("Segoe UI", 9) };
-        txtNombre = new TextBox { Dock = DockStyle.Fill, Height = 28, Font = new Font("Segoe UI", 10) };
+        pnlFormulario.Controls.Add(UIHelper.CrearLabel("Nombre:", negrita: true), 0, 1);
+        txtNombre = UIHelper.CrearTextBox();
+        txtNombre.Dock = DockStyle.Fill;
+        pnlFormulario.Controls.Add(txtNombre, 1, 1);
 
-        lbCorreo = new Label { Text = "Correo:", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, Font = new Font("Segoe UI", 9) };
-        txtCorreo = new TextBox { Dock = DockStyle.Fill, Height = 28, Font = new Font("Segoe UI", 10) };
+        pnlFormulario.Controls.Add(UIHelper.CrearLabel("Correo:", negrita: true), 0, 2);
+        txtCorreo = UIHelper.CrearTextBox();
+        txtCorreo.Dock = DockStyle.Fill;
+        pnlFormulario.Controls.Add(txtCorreo, 1, 2);
 
-        lbTelefono = new Label { Text = "Teléfono:", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, Font = new Font("Segoe UI", 9) };
-        txtTelefono = new TextBox { Dock = DockStyle.Fill, Height = 28, Font = new Font("Segoe UI", 10) };
+        pnlFormulario.Controls.Add(UIHelper.CrearLabel("Teléfono:", negrita: true), 0, 3);
+        txtTelefono = UIHelper.CrearTextBox();
+        txtTelefono.Dock = DockStyle.Fill;
+        pnlFormulario.Controls.Add(txtTelefono, 1, 3);
 
-        lbCategoria = new Label { Text = "Categoría:", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, Font = new Font("Segoe UI", 9) };
-        cmbCategoria = new ComboBox
-        {
-            Dock = DockStyle.Fill,
-            DropDownStyle = ComboBoxStyle.DropDownList,
-            Font = new Font("Segoe UI", 10)
-        };
+        pnlFormulario.Controls.Add(UIHelper.CrearLabel("Categoría:", negrita: true), 0, 4);
+        cmbCategoria = UIHelper.CrearComboBox();
+        cmbCategoria.Dock = DockStyle.Fill;
         cmbCategoria.Items.AddRange(new object[] { "Normal", "VIP" });
         cmbCategoria.SelectedIndex = 0;
-
-        pnlFormulario.Controls.Add(lbIdentificacion, 0, 0);
-        pnlFormulario.Controls.Add(txtIdentificacion, 1, 0);
-        pnlFormulario.Controls.Add(lbNombre, 0, 1);
-        pnlFormulario.Controls.Add(txtNombre, 1, 1);
-        pnlFormulario.Controls.Add(lbCorreo, 0, 2);
-        pnlFormulario.Controls.Add(txtCorreo, 1, 2);
-        pnlFormulario.Controls.Add(lbTelefono, 0, 3);
-        pnlFormulario.Controls.Add(txtTelefono, 1, 3);
-        pnlFormulario.Controls.Add(lbCategoria, 0, 4);
         pnlFormulario.Controls.Add(cmbCategoria, 1, 4);
 
         grpFormulario.Controls.Add(pnlFormulario);
@@ -190,46 +139,17 @@ public class FrmClientes : UserControl, IViewRefrescable
         {
             Dock = DockStyle.Bottom,
             FlowDirection = FlowDirection.RightToLeft,
-            Height = 45,
-            Padding = new Padding(10, 5, 10, 5)
+            Height = 50,
+            Padding = new Padding(10, 10, 10, 5)
         };
 
-        btnCancelar = new Button
-        {
-            Text = "Cancelar",
-            Width = 100,
-            Height = 32,
-            BackColor = Color.FromArgb(230, 230, 230),
-            FlatStyle = FlatStyle.Flat,
-            Font = new Font("Segoe UI", 9)
-        };
-        btnCancelar.FlatAppearance.BorderSize = 0;
+        btnCancelar = UIHelper.CrearBotonGris("Cancelar", 100);
         btnCancelar.Click += (_, _) => LimpiarFormulario();
 
-        btnGuardar = new Button
-        {
-            Text = "Guardar",
-            Width = 100,
-            Height = 32,
-            BackColor = Color.FromArgb(30, 120, 200),
-            ForeColor = Color.White,
-            FlatStyle = FlatStyle.Flat,
-            Font = new Font("Segoe UI", 9, FontStyle.Bold)
-        };
-        btnGuardar.FlatAppearance.BorderSize = 0;
+        btnGuardar = UIHelper.CrearBotonPrimario("Guardar", 100);
         btnGuardar.Click += async (_, _) => await GuardarClienteAsync();
 
-        btnDesactivar = new Button
-        {
-            Text = "Desactivar",
-            Width = 100,
-            Height = 32,
-            BackColor = Color.FromArgb(200, 60, 60),
-            ForeColor = Color.White,
-            FlatStyle = FlatStyle.Flat,
-            Font = new Font("Segoe UI", 9)
-        };
-        btnDesactivar.FlatAppearance.BorderSize = 0;
+        btnDesactivar = UIHelper.CrearBotonPeligro("Desactivar", 100);
         btnDesactivar.Click += async (_, _) => await DesactivarClienteAsync();
 
         pnlBotonera.Controls.AddRange(new Control[] { btnCancelar, btnGuardar, btnDesactivar });
@@ -258,18 +178,15 @@ public class FrmClientes : UserControl, IViewRefrescable
             foreach (var c in clientes)
             {
                 dgvClientes.Rows.Add(
-                    c.Id,
-                    c.Identificacion,
-                    c.Nombre,
-                    c.Correo,
-                    c.Telefono,
+                    c.Id, c.Identificacion, c.Nombre, c.Correo, c.Telefono,
                     c.Categoria.ToString().ToUpper(),
                     c.Activo ? "ACTIVO" : "INACTIVO");
             }
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Error: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show($"Error: {ex.Message}", "Error",
+                MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
 
@@ -306,7 +223,6 @@ public class FrmClientes : UserControl, IViewRefrescable
             return;
         }
 
-        // Chain of Responsibility: validar cliente activo antes de guardar
         try
         {
             var categoria = (CategoriaCliente)Enum.Parse(typeof(CategoriaCliente), cmbCategoria.Text);

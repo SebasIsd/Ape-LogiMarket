@@ -3,19 +3,25 @@ using LogiMarket.Domain.Entities.Catalog;
 using LogiMarket.Domain.Visitors;
 using LogiMarket.Infrastructure.Catalog;
 using LogiMarket.WinForms.Mediator;
+using LogiMarket.WinForms.UI;
 using System.Windows.Forms;
 
 namespace LogiMarket.WinForms.Forms;
 
 public partial class FrmCatalogo : UserControl, IViewRefrescable
 {
+    // --- Componentes ---
+    private DataGridView dgvCatalogo;
+    private Button btnExpandir;
+    private Button btnPeso;
+    private TextBox txtSkuSeleccionado;
+    private Label lbSku;
+    private TableLayoutPanel pnlRaiz;
+    private Panel pnlAcciones;
+
     private readonly IRepositorioCatalogo _catalogo;
     private readonly IFormularioMediator _mediator;
     private readonly CatalogoVisualFlyweightFactory _flyweight;
-    private readonly DataGridView _grid;
-    private readonly Button _btnExpandir;
-    private readonly Button _btnPeso;
-    private readonly TextBox _txtSkuSeleccionado;
 
     public FrmCatalogo(IRepositorioCatalogo catalogo, IFormularioMediator mediator, CatalogoVisualFlyweightFactory flyweight)
     {
@@ -24,29 +30,56 @@ public partial class FrmCatalogo : UserControl, IViewRefrescable
         _flyweight = flyweight;
         _mediator.Registrar(this);
 
-        _grid = new DataGridView
+        InicializarComponentes();
+        Load += async (_, _) => await CargarCatalogoAsync();
+    }
+
+    private void InicializarComponentes()
+    {
+        BackColor = UIHelper.ColorGrisClaro;
+
+        // --- Layout principal: grid arriba (70%), acciones abajo (30%) ---
+        pnlRaiz = new TableLayoutPanel
         {
-            Dock = DockStyle.Top,
-            Height = 300,
-            ReadOnly = true,
-            AllowUserToAddRows = false,
-            SelectionMode = DataGridViewSelectionMode.FullRowSelect,
-            MultiSelect = false
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 2,
+            Padding = new Padding(15)
+        };
+        pnlRaiz.RowStyles.Add(new RowStyle(SizeType.Percent, 70));
+        pnlRaiz.RowStyles.Add(new RowStyle(SizeType.Percent, 30));
+
+        // --- Grid ---
+        dgvCatalogo = UIHelper.CrearDataGridView();
+        dgvCatalogo.Dock = DockStyle.Fill;
+        pnlRaiz.Controls.Add(dgvCatalogo, 0, 0);
+
+        // --- Panel de acciones ---
+        pnlAcciones = new Panel
+        {
+            Dock = DockStyle.Fill,
+            Padding = new Padding(0, 10, 0, 0)
         };
 
-        _txtSkuSeleccionado = new TextBox { ReadOnly = true, Width = 200, Location = new Point(10, 310) };
-        _btnExpandir = new Button { Text = "Expandir kit (Iterator)", Location = new Point(220, 307), Width = 180 };
-        _btnPeso = new Button { Text = "Calcular peso (Visitor)", Location = new Point(410, 307), Width = 180 };
+        lbSku = UIHelper.CrearLabel("SKU seleccionado:", negrita: true);
+        lbSku.Location = new Point(0, 5);
 
-        _btnExpandir.Click += BtnExpandir_Click;
-        _btnPeso.Click += BtnPeso_Click;
+        txtSkuSeleccionado = UIHelper.CrearTextBox(200);
+        txtSkuSeleccionado.ReadOnly = true;
+        txtSkuSeleccionado.Location = new Point(130, 3);
 
-        Controls.Add(_grid);
-        Controls.Add(_txtSkuSeleccionado);
-        Controls.Add(_btnExpandir);
-        Controls.Add(_btnPeso);
+        btnExpandir = UIHelper.CrearBotonSecundario("🔍 Expandir kit (Iterator)", 200);
+        btnExpandir.Location = new Point(340, 0);
+        btnExpandir.Click += BtnExpandir_Click;
 
-        Load += async (_, _) => await CargarCatalogoAsync();
+        btnPeso = UIHelper.CrearBoton("⚖️ Calcular peso (Visitor)", UIHelper.ColorInfo, ancho: 200);
+        btnPeso.Location = new Point(550, 0);
+        btnPeso.Click += BtnPeso_Click;
+
+        pnlAcciones.Controls.AddRange(new Control[] { lbSku, txtSkuSeleccionado, btnExpandir, btnPeso });
+        pnlRaiz.Controls.Add(pnlAcciones, 0, 1);
+
+        Controls.Add(pnlRaiz);
     }
 
     private async Task CargarCatalogoAsync()
@@ -54,79 +87,103 @@ public partial class FrmCatalogo : UserControl, IViewRefrescable
         try
         {
             var elementos = await _catalogo.ListarTodoAsync();
-            _grid.Rows.Clear();
-            _grid.Columns.Clear();
-            _grid.Columns.Add("Sku", "SKU");
-            _grid.Columns.Add("Nombre", "Nombre");
-            _grid.Columns.Add("Tipo", "Tipo");
-            _grid.Columns.Add("Precio", "Precio");
-            _grid.Columns.Add("Stock", "Stock");
-            _grid.Columns.Add("PesoKg", "Peso (kg)");
+            dgvCatalogo.Rows.Clear();
+            dgvCatalogo.Columns.Clear();
+            dgvCatalogo.Columns.Add("colSku", "SKU");
+            dgvCatalogo.Columns.Add("colNombre", "Nombre");
+            dgvCatalogo.Columns.Add("colTipo", "Tipo");
+            dgvCatalogo.Columns.Add("colPrecio", "Precio");
+            dgvCatalogo.Columns.Add("colStock", "Stock");
+            dgvCatalogo.Columns.Add("colPeso", "Peso (kg)");
 
             foreach (var elem in elementos)
             {
-                // Flyweight: compartir metadatos inmutables
                 var metadata = _flyweight.Obtener(
-                    elem.Sku,
-                    elem.Nombre,
-                    elem.EsKit,
+                    elem.Sku, elem.Nombre, elem.EsKit,
                     elem is ProductoSimple p ? p.PesoKg : 0m);
 
                 int stock = elem is ProductoSimple ps ? ps.Stock : 0;
                 var precio = elem.CalcularPrecioTotal(1);
 
-                _grid.Rows.Add(metadata.Sku, metadata.Nombre, metadata.EsKit ? "KIT" : "Producto",
+                dgvCatalogo.Rows.Add(
+                    metadata.Sku, metadata.Nombre, metadata.EsKit ? "KIT" : "Producto",
                     precio.Amount.ToString("0.00"), stock, metadata.PesoKg.ToString("0.00"));
             }
 
-            _grid.SelectionChanged += (_, _) =>
+            dgvCatalogo.SelectionChanged += (_, _) =>
             {
-                if (_grid.CurrentRow is not null)
-                    _txtSkuSeleccionado.Text = _grid.CurrentRow.Cells["Sku"].Value?.ToString() ?? "";
+                if (dgvCatalogo.CurrentRow is not null)
+                    txtSkuSeleccionado.Text = dgvCatalogo.CurrentRow.Cells["colSku"].Value?.ToString() ?? "";
             };
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Error cargando catálogo: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show($"Error cargando catálogo: {ex.Message}", "Error",
+                MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
 
     private async void BtnExpandir_Click(object? sender, EventArgs e)
     {
-        var sku = _txtSkuSeleccionado.Text.Trim();
-        if (string.IsNullOrEmpty(sku)) { MessageBox.Show("Selecciona un SKU."); return; }
+        var sku = txtSkuSeleccionado.Text.Trim();
+        if (string.IsNullOrEmpty(sku))
+        {
+            MessageBox.Show("Selecciona un SKU de la tabla.", "Aviso",
+                MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
 
         var elem = await _catalogo.ObtenerPorSkuAsync(sku);
-        if (elem is null) { MessageBox.Show("SKU no encontrado."); return; }
-        if (!elem.EsKit) { MessageBox.Show("Solo se expanden kits."); return; }
+        if (elem is null)
+        {
+            MessageBox.Show("SKU no encontrado.", "Error",
+                MessageBoxButtons.OK, MessageBoxIcon.Error);
+            return;
+        }
+        if (!elem.EsKit)
+        {
+            MessageBox.Show("Solo se pueden expandir kits.", "Aviso",
+                MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
 
-        // Iterator propio
         var iterador = new Domain.Iterators.KitPhysicalIterator(elem, 1);
-        var sb = new System.Text.StringBuilder($"Expansión de {sku}:\n");
+        var sb = new System.Text.StringBuilder($"Expansión de {sku}:\n\n");
         foreach (var (producto, cantidad) in iterador.GetEnumerator())
-            sb.AppendLine($"  {producto.Sku} - {producto.Nombre} x{cantidad}");
+            sb.AppendLine($"  • {producto.Sku} - {producto.Nombre} × {cantidad}");
 
-        MessageBox.Show(sb.ToString(), "Iterator - Expansión de kit", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        MessageBox.Show(sb.ToString(), "Iterator - Expansión de kit",
+            MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 
     private async void BtnPeso_Click(object? sender, EventArgs e)
     {
-        var sku = _txtSkuSeleccionado.Text.Trim();
-        if (string.IsNullOrEmpty(sku)) { MessageBox.Show("Selecciona un SKU."); return; }
+        var sku = txtSkuSeleccionado.Text.Trim();
+        if (string.IsNullOrEmpty(sku))
+        {
+            MessageBox.Show("Selecciona un SKU de la tabla.", "Aviso",
+                MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
 
         var elem = await _catalogo.ObtenerPorSkuAsync(sku);
-        if (elem is null) { MessageBox.Show("SKU no encontrado."); return; }
+        if (elem is null)
+        {
+            MessageBox.Show("SKU no encontrado.", "Error",
+                MessageBoxButtons.OK, MessageBoxIcon.Error);
+            return;
+        }
 
-        // Visitor
         var visitor = new DesgloseFisicoVisitor();
         visitor.Calcular(elem, 1);
 
-        var sb = new System.Text.StringBuilder($"Desglose de {sku}:\n");
+        var sb = new System.Text.StringBuilder($"Desglose físico de {sku}:\n\n");
         foreach (var (s, c) in visitor.Desglose)
-            sb.AppendLine($"  {s}: {c} unidades");
-        sb.AppendLine($"\nPeso total: {visitor.PesoTotal:0.00} kg");
+            sb.AppendLine($"  • {s}: {c} unidades");
+        sb.AppendLine($"\n⚖️ Peso total: {visitor.PesoTotal:0.00} kg");
 
-        MessageBox.Show(sb.ToString(), "Visitor - Desglose físico", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        MessageBox.Show(sb.ToString(), "Visitor - Desglose físico",
+            MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 
     // IViewRefrescable

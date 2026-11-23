@@ -13,6 +13,8 @@ public partial class MainForm : Form, IViewRefrescable
     private readonly MetricasSesion _metricas;
     private readonly IServiceProvider _sp;
     private readonly TabControl _tabs;
+    public bool CerrarAppSolicitado { get; private set; } = false;
+    public event Action? SolicitarCerrarApp;
 
     public MainForm(
         IFormularioMediator mediator,
@@ -79,6 +81,16 @@ public partial class MainForm : Form, IViewRefrescable
             if (MessageBox.Show("¿Cerrar sesión?", "Confirmar", MessageBoxButtons.YesNo) == DialogResult.Yes)
             {
                 _sesion.CerrarSesion();
+                CerrarAppSolicitado = false;
+                Close();
+            }
+        });
+        sesionMenu.DropDownItems.Add("Salir de la aplicación", null, (_, _) =>
+        {
+            if (MessageBox.Show("¿Salir de LogiMarket 360?", "Confirmar", MessageBoxButtons.YesNo) == DialogResult.Yes)
+            {
+                CerrarAppSolicitado = true;
+                SolicitarCerrarApp?.Invoke();
                 Close();
             }
         });

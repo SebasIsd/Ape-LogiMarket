@@ -7,6 +7,7 @@ using LogiMarket.Domain.Entities.Catalog;
 using LogiMarket.Domain.Enums;
 using LogiMarket.Domain.ValueObjects;
 using LogiMarket.WinForms.Mediator;
+using LogiMarket.WinForms.UI;
 using System.Windows.Forms;
 
 namespace LogiMarket.WinForms.Forms;
@@ -42,7 +43,7 @@ public class FrmCarrito : UserControl, IViewRefrescable
     private readonly IRepositorioCatalogo _catalogo;
     private readonly IRepositorioCliente _repoClientes;
     private readonly CalculadoraDescuentoContext _descuentos;
-    private readonly IEnvioFactory _envioFactory;
+    private readonly IEnvioAbstractFactory _envioFactory;
     private readonly IFormularioMediator _mediator;
 
     private Pedido? _pedidoActual;
@@ -54,7 +55,7 @@ public class FrmCarrito : UserControl, IViewRefrescable
         IRepositorioCatalogo catalogo,
         IRepositorioCliente repoClientes,
         CalculadoraDescuentoContext descuentos,
-        IEnvioFactory envioFactory,
+        IEnvioAbstractFactory envioFactory,
         IFormularioMediator mediator)
     {
         _catalogo = catalogo;
@@ -70,7 +71,7 @@ public class FrmCarrito : UserControl, IViewRefrescable
 
     private void InicializarComponentes()
     {
-        BackColor = Color.FromArgb(245, 247, 250);
+        BackColor = UIHelper.ColorGrisClaro;
 
         pnlRaiz = new TableLayoutPanel
         {
@@ -79,67 +80,55 @@ public class FrmCarrito : UserControl, IViewRefrescable
             RowCount = 3,
             Padding = new Padding(15)
         };
-        pnlRaiz.RowStyles.Add(new RowStyle(SizeType.Absolute, 60));   // Barra superior
-        pnlRaiz.RowStyles.Add(new RowStyle(SizeType.Percent, 100));   // Grid
-        pnlRaiz.RowStyles.Add(new RowStyle(SizeType.Absolute, 200));  // Totales + botones
+        pnlRaiz.RowStyles.Add(new RowStyle(SizeType.Absolute, 60));
+        pnlRaiz.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        pnlRaiz.RowStyles.Add(new RowStyle(SizeType.Absolute, 220));
 
-        // --- Barra superior: cliente + producto + cantidad + botones ---
+        // --- Barra superior ---
         var pnlSuperior = new FlowLayoutPanel
         {
             Dock = DockStyle.Fill,
             FlowDirection = FlowDirection.LeftToRight,
             WrapContents = false,
-            Padding = new Padding(0, 5, 0, 5)
+            Padding = new Padding(0, 10, 0, 5)
         };
 
-        lbCliente = new Label { Text = "Cliente:", AutoSize = true, Font = new Font("Segoe UI", 9, FontStyle.Bold), Margin = new Padding(0, 8, 5, 0) };
-        cmbClientes = new ComboBox { Width = 200, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Segoe UI", 10) };
+        lbCliente = UIHelper.CrearLabel("Cliente:", negrita: true);
+        lbCliente.Margin = new Padding(0, 8, 5, 0);
+        cmbClientes = UIHelper.CrearComboBox(200);
 
-        lbProducto = new Label { Text = "  Producto/Kit:", AutoSize = true, Font = new Font("Segoe UI", 9, FontStyle.Bold), Margin = new Padding(10, 8, 5, 0) };
-        cmbProductos = new ComboBox { Width = 200, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Segoe UI", 10) };
+        lbProducto = UIHelper.CrearLabel("  Producto/Kit:", negrita: true);
+        lbProducto.Margin = new Padding(10, 8, 5, 0);
+        cmbProductos = UIHelper.CrearComboBox(200);
 
-        lbCantidad = new Label { Text = "  Cantidad:", AutoSize = true, Font = new Font("Segoe UI", 9, FontStyle.Bold), Margin = new Padding(10, 8, 5, 0) };
-        nudCantidad = new NumericUpDown { Width = 60, Minimum = 1, Maximum = 999, Value = 1, Font = new Font("Segoe UI", 10) };
+        lbCantidad = UIHelper.CrearLabel("  Cantidad:", negrita: true);
+        lbCantidad.Margin = new Padding(10, 8, 5, 0);
+        nudCantidad = new NumericUpDown { Width = 70, Minimum = 1, Maximum = 999, Value = 1, Font = UIHelper.FuenteNormal };
 
-        btnAgregar = new Button { Text = "Agregar", Width = 80, Height = 30, BackColor = Color.FromArgb(40, 160, 80), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9, FontStyle.Bold) };
-        btnAgregar.FlatAppearance.BorderSize = 0;
+        btnAgregar = UIHelper.CrearBotonSecundario("Agregar", 90);
         btnAgregar.Click += async (_, _) => await AgregarLineaAsync();
 
-        btnQuitar = new Button { Text = "Quitar", Width = 70, Height = 30, BackColor = Color.FromArgb(200, 60, 60), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9) };
-        btnQuitar.FlatAppearance.BorderSize = 0;
+        btnQuitar = UIHelper.CrearBotonPeligro("Quitar", 80);
         btnQuitar.Click += QuitarLinea;
 
-        btnDeshacer = new Button { Text = "↶ Deshacer", Width = 90, Height = 30, BackColor = Color.FromArgb(100, 100, 100), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9) };
-        btnDeshacer.FlatAppearance.BorderSize = 0;
+        btnDeshacer = UIHelper.CrearBotonGris("↶ Deshacer", 100);
         btnDeshacer.Click += (_, _) => Deshacer();
 
-        btnRehacer = new Button { Text = "↷ Rehacer", Width = 90, Height = 30, BackColor = Color.FromArgb(100, 100, 100), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9) };
-        btnRehacer.FlatAppearance.BorderSize = 0;
+        btnRehacer = UIHelper.CrearBotonGris("↷ Rehacer", 100);
         btnRehacer.Click += (_, _) => Rehacer();
 
-        btnClonar = new Button { Text = "⎘ Clonar", Width = 80, Height = 30, BackColor = Color.FromArgb(120, 80, 180), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9) };
-        btnClonar.FlatAppearance.BorderSize = 0;
+        btnClonar = UIHelper.CrearBoton("⎘ Clonar", UIHelper.ColorInfo, ancho: 90);
         btnClonar.Click += (_, _) => ClonarBorrador();
 
-        btnLimpiar = new Button { Text = "✕ Limpiar", Width = 80, Height = 30, BackColor = Color.FromArgb(180, 180, 180), FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9) };
-        btnLimpiar.FlatAppearance.BorderSize = 0;
+        btnLimpiar = UIHelper.CrearBotonGris("✕ Limpiar", 90);
         btnLimpiar.Click += (_, _) => { _pedidoActual = null; _pilaDeshacer.Clear(); _pilaRehacer.Clear(); RefrescarGrid(); };
 
         pnlSuperior.Controls.AddRange(new Control[] { lbCliente, cmbClientes, lbProducto, cmbProductos, lbCantidad, nudCantidad, btnAgregar, btnQuitar, btnDeshacer, btnRehacer, btnClonar, btnLimpiar });
         pnlRaiz.Controls.Add(pnlSuperior, 0, 0);
 
-        // --- Grid del carrito ---
-        dgvCarrito = new DataGridView
-        {
-            Dock = DockStyle.Fill,
-            ReadOnly = true,
-            AllowUserToAddRows = false,
-            SelectionMode = DataGridViewSelectionMode.FullRowSelect,
-            MultiSelect = false,
-            AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
-            BackgroundColor = Color.White,
-            BorderStyle = BorderStyle.FixedSingle
-        };
+        // --- Grid ---
+        dgvCarrito = UIHelper.CrearDataGridView();
+        dgvCarrito.Dock = DockStyle.Fill;
         dgvCarrito.Columns.Add("colSku", "SKU");
         dgvCarrito.Columns.Add("colNombre", "Nombre");
         dgvCarrito.Columns.Add("colTipo", "Tipo");
@@ -161,13 +150,8 @@ public class FrmCarrito : UserControl, IViewRefrescable
         pnlInferior.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 60));
         pnlInferior.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40));
 
-        grpTotales = new GroupBox
-        {
-            Text = "Resumen",
-            Dock = DockStyle.Fill,
-            Font = new Font("Segoe UI", 9, FontStyle.Bold),
-            ForeColor = Color.FromArgb(30, 60, 90)
-        };
+        grpTotales = UIHelper.CrearGroupBox("Resumen");
+        grpTotales.Dock = DockStyle.Fill;
 
         var pnlTotales = new TableLayoutPanel
         {
@@ -179,30 +163,31 @@ public class FrmCarrito : UserControl, IViewRefrescable
         pnlTotales.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
         pnlTotales.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
 
-        lbSubtotal = new Label { Text = "Subtotal: $ 0.00", Dock = DockStyle.Fill, Font = new Font("Segoe UI", 10) };
-        lbDescuento = new Label { Text = "Descuento: $ 0.00", Dock = DockStyle.Fill, Font = new Font("Segoe UI", 10) };
-        lbEstrategia = new Label { Text = "Estrategia: NORMAL", Dock = DockStyle.Fill, Font = new Font("Segoe UI", 10) };
-        lbTarifa = new Label { Text = "Tarifa: $ 0.00", Dock = DockStyle.Fill, Font = new Font("Segoe UI", 10) };
-        lbTotal = new Label { Text = "TOTAL: $ 0.00", Dock = DockStyle.Fill, Font = new Font("Segoe UI", 12, FontStyle.Bold), ForeColor = Color.FromArgb(30, 120, 200) };
+        lbSubtotal = new Label { Text = "Subtotal: $ 0.00", Dock = DockStyle.Fill, Font = UIHelper.FuenteNormal };
+        lbDescuento = new Label { Text = "Descuento: $ 0.00", Dock = DockStyle.Fill, Font = UIHelper.FuenteNormal };
+        lbEstrategia = new Label { Text = "Estrategia: NORMAL", Dock = DockStyle.Fill, Font = UIHelper.FuenteNormal };
+        lbTarifa = new Label { Text = "Tarifa: $ 0.00", Dock = DockStyle.Fill, Font = UIHelper.FuenteNormal };
+        lbTotal = new Label { Text = "TOTAL: $ 0.00", Dock = DockStyle.Fill, Font = UIHelper.FuenteGrande, ForeColor = UIHelper.ColorPrimario };
 
-        lbEnvio = new Label { Text = "Envío:", Dock = DockStyle.Fill, Font = new Font("Segoe UI", 10) };
-        cmbEnvio = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Segoe UI", 10) };
+        lbEnvio = UIHelper.CrearLabel("Envío:", negrita: true);
+        cmbEnvio = UIHelper.CrearComboBox();
+        cmbEnvio.Dock = DockStyle.Fill;
         cmbEnvio.Items.AddRange(new object[] { "ESTÁNDAR", "EXPRÉS" });
         cmbEnvio.SelectedIndex = 0;
         cmbEnvio.SelectedIndexChanged += (_, _) => Recalcular();
 
-        pnlTotales.Controls.Add(lbSubtotal, 0, 0);
-        pnlTotales.SetColumnSpan(lbSubtotal, 2);
-        pnlTotales.Controls.Add(lbDescuento, 0, 1);
-        pnlTotales.SetColumnSpan(lbDescuento, 2);
-        pnlTotales.Controls.Add(lbEstrategia, 0, 2);
-        pnlTotales.SetColumnSpan(lbEstrategia, 2);
-        pnlTotales.Controls.Add(lbTarifa, 0, 3);
-        pnlTotales.SetColumnSpan(lbTarifa, 2);
+        pnlTotales.Controls.Add(UIHelper.CrearLabel("Subtotal:"), 0, 0);
+        pnlTotales.Controls.Add(lbSubtotal, 1, 0);
+        pnlTotales.Controls.Add(UIHelper.CrearLabel("Descuento:"), 0, 1);
+        pnlTotales.Controls.Add(lbDescuento, 1, 1);
+        pnlTotales.Controls.Add(UIHelper.CrearLabel("Estrategia:"), 0, 2);
+        pnlTotales.Controls.Add(lbEstrategia, 1, 2);
+        pnlTotales.Controls.Add(UIHelper.CrearLabel("Tarifa:"), 0, 3);
+        pnlTotales.Controls.Add(lbTarifa, 1, 3);
         pnlTotales.Controls.Add(lbEnvio, 0, 4);
         pnlTotales.Controls.Add(cmbEnvio, 1, 4);
-        pnlTotales.Controls.Add(lbTotal, 0, 5);
-        pnlTotales.SetColumnSpan(lbTotal, 2);
+        pnlTotales.Controls.Add(UIHelper.CrearLabel("TOTAL:", negrita: true), 0, 5);
+        pnlTotales.Controls.Add(lbTotal, 1, 5);
 
         grpTotales.Controls.Add(pnlTotales);
         pnlInferior.Controls.Add(grpTotales, 0, 0);
@@ -215,17 +200,9 @@ public class FrmCarrito : UserControl, IViewRefrescable
             Padding = new Padding(10)
         };
 
-        btnValidar = new Button
-        {
-            Text = "✓ Validar Pedido",
-            Width = 200,
-            Height = 40,
-            BackColor = Color.FromArgb(30, 120, 200),
-            ForeColor = Color.White,
-            FlatStyle = FlatStyle.Flat,
-            Font = new Font("Segoe UI", 10, FontStyle.Bold)
-        };
-        btnValidar.FlatAppearance.BorderSize = 0;
+        btnValidar = UIHelper.CrearBotonPrimario("✓ Validar Pedido", 200);
+        btnValidar.Height = 45;
+        btnValidar.Font = UIHelper.FuenteGrande;
         btnValidar.Click += async (_, _) => await ValidarPedidoAsync();
 
         pnlAcciones.Controls.Add(btnValidar);
@@ -292,9 +269,10 @@ public class FrmCarrito : UserControl, IViewRefrescable
         RefrescarGrid();
     }
 
-    private void QuitarLinea()
+    private void QuitarLinea(object? sender, EventArgs e)
     {
         if (_pedidoActual is null || dgvCarrito.CurrentRow is null) return;
+
         GuardarMemento();
         var sku = dgvCarrito.CurrentRow.Cells["colSku"].Value?.ToString();
         if (sku is not null)

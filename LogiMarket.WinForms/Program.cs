@@ -22,6 +22,7 @@ using LogiMarket.WinForms.Mediator;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using System.Windows.Forms;
 
 namespace LogiMarket.WinForms;
 
@@ -37,7 +38,7 @@ internal static class Program
 
         var provider = services.BuildServiceProvider();
 
-        // Migraciones y seed al iniciar
+        // Migraciones y seed UNA SOLA VEZ al iniciar la app
         using (var scope = provider.CreateScope())
         {
             try
@@ -49,30 +50,58 @@ internal static class Program
             catch (Exception ex)
             {
                 MessageBox.Show(
-                    $"Error al inicializar la base de datos: {ex.Message}\n\n" +
+                    $"Error al inicializar la base de datos:\n{ex.Message}\n\n" +
                     "Ejecute 'dotnet ef database update' o elimine logimarket.db y reinicie.",
-                    "LogiMarket 360",
+                    "LogiMarket 360 - Error de Inicio",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Error);
                 return;
             }
         }
 
-        // Iniciar sesión primero
-        using (var sessionScope = provider.CreateScope())
-        {
-            var loginForm = sessionScope.ServiceProvider.GetRequiredService<FrmLogin>();
-            if (loginForm.ShowDialog() != DialogResult.OK)
-            {
-                System.Windows.Forms.Application.Exit();
-                return;
-            }
-        }
+        // --- Bucle de sesión: permite re-login sin cerrar la app ---
+        bool cerrarApp = false;
 
-        // Abrir MainForm
-        using (var mainScope = provider.CreateScope())
+        while (!cerrarApp)
         {
-            System.Windows.Forms.Application.Run(mainScope.ServiceProvider.GetRequiredService<MainForm>());
+            // 1. Mostrar Login
+            using (var loginScope = provider.CreateScope())
+            {
+                var loginForm = loginScope.ServiceProvider.GetRequiredService<FrmLogin>();
+                var resultado = loginForm.ShowDialog();
+
+                if (resultado != DialogResult.OK)
+                {
+                    // Usuario canceló el login → cerrar app
+                    cerrarApp = true;
+                    break;
+                }
+            }
+
+            // 2. Mostrar MainForm (bloqueante hasta que se cierre)
+            using (var mainScope = provider.CreateScope())
+            {
+                var mainForm = mainScope.ServiceProvider.GetRequiredService<MainForm>();
+
+                // Suscribirse al evento de "cerrar app" vs "logout"
+                mainForm.SolicitarCerrarApp += () => cerrarApp = true;
+
+                System.Windows.Forms.Application.Run(mainForm);
+
+                // Si el MainForm se cerró por logout (no por cerrar app),
+                // el bucle continúa y muestra el Login de nuevo.
+                if (!mainForm.CerrarAppSolicitado)
+                {
+                    // Logout: continuar el bucle para mostrar Login
+                    continue;
+                }
+                else
+                {
+                    // Cierre real de la app
+                    cerrarApp = true;
+                    break;
+                }
+            }
         }
     }
 
@@ -130,7 +159,7 @@ internal static class Program
         services.AddSingleton<INotificadorFactory, NotificadorFactory>();
 
         // --- Singleton de métricas ---
-        services.AddSingleton<MetricasSesion>();
+        services.AddSingleton(MetricasSesion.Instance);
 
         // --- Flyweight de catálogo ---
         services.AddSingleton<CatalogoVisualFlyweightFactory>();
