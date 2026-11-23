@@ -179,4 +179,13 @@ public class Pedido : ICloneable
 
         return clon;
     }
+
+    public void QuitarLinea(string sku)
+    {
+        AsegurarEditable();
+        var linea = _detalles.FirstOrDefault(d => d.Sku == sku)
+            ?? throw new Exceptions.DomainException($"Línea {sku} no encontrada.");
+        _detalles.Remove(linea);
+        RecalcularTotal();
+    }
 }
