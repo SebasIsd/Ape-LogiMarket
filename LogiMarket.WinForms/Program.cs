@@ -40,9 +40,22 @@ internal static class Program
         // Migraciones y seed al iniciar
         using (var scope = provider.CreateScope())
         {
-            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            await db.Database.MigrateAsync();
-            await AppSeeder.SeedAsync(db);
+            try
+            {
+                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                await db.Database.MigrateAsync();
+                await AppSeeder.SeedAsync(db);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"Error al inicializar la base de datos: {ex.Message}\n\n" +
+                    "Ejecute 'dotnet ef database update' o elimine logimarket.db y reinicie.",
+                    "LogiMarket 360",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+                return;
+            }
         }
 
         // Iniciar sesión primero
