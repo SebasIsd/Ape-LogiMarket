@@ -124,7 +124,7 @@ public class ConfirmacionPedidoFacade
     private async Task DescontarStockDeProductosFinalesAsync(Pedido pedido, string referencia, CancellationToken ct)
     {
         // Agrupa las cantidades requeridas por SKU final
-        var requeridoPorSku = new Dictionary<string, int>();
+        var requeridoPorSku = new Dictionary<string, int>(); 
 
         foreach (var detalle in pedido.Detalles)
         {
