@@ -51,7 +51,7 @@ internal static class Program
             var loginForm = sessionScope.ServiceProvider.GetRequiredService<FrmLogin>();
             if (loginForm.ShowDialog() != DialogResult.OK)
             {
-                Application.Exit();
+                System.Windows.Forms.Application.Exit();
                 return;
             }
         }
@@ -59,7 +59,7 @@ internal static class Program
         // Abrir MainForm
         using (var mainScope = provider.CreateScope())
         {
-            Application.Run(mainScope.ServiceProvider.GetRequiredService<MainForm>());
+            System.Windows.Forms.Application.Run(mainScope.ServiceProvider.GetRequiredService<MainForm>());
         }
     }
 

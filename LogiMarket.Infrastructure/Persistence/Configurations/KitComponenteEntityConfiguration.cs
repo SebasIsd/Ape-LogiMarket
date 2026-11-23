@@ -30,6 +30,7 @@ public class KitComponenteEntityConfiguration : IEntityTypeConfiguration<KitComp
            .OnDelete(DeleteBehavior.Restrict)
            .IsRequired(false);
 
-        b.HasCheckConstraint("CK_TipoElemento", "TipoElemento IN ('Producto','Kit')");
+        //reemplazado para que solo se pueda insertar Producto o Kit, no ambos
+        b.ToTable("KitComponentes", t => t.HasCheckConstraint("CK_TipoElemento", "TipoElemento IN ('Producto','Kit')"));
     }
 }
