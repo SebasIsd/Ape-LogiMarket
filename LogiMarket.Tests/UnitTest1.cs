@@ -1,4 +1,5 @@
-﻿namespace LogiMarket.Tests
+﻿using LogiMarket.Application.Ports.Persistence;
+namespace LogiMarket.Tests
 {
     public class UnitTest1
     {

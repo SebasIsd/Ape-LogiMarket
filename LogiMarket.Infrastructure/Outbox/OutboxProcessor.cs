@@ -17,21 +17,21 @@ public class OutboxProcessor
         _log = log;
     }
 
-    public async Task ProcesarPendientesAsync(CancellationToken ct = default)
+    public async Task ProcesarPendientesAsync(string canal = "EMAIL", CancellationToken ct = default)
     {
         var pendientes = await _outbox.ObtenerPendientesAsync(50, ct);
         foreach (var ev in pendientes)
         {
             try
             {
-                var notificador = _notificadorFactory.Crear("EMAIL");
+                var notificador = _notificadorFactory.Crear(canal);
                 await notificador.EnviarAsync(
                     "sistema@logimarket.local",
                     $"Evento: {ev.TipoEvento}",
                     ev.Payload,
                     ct);
                 await _outbox.MarcarProcesadoAsync(ev.Id, ct);
-                _log.LogInformation("Outbox procesado {Id} tipo {Tipo}", ev.Id, ev.TipoEvento);
+                _log.LogInformation("Outbox procesado {Id} tipo {Tipo} por {Canal}", ev.Id, ev.TipoEvento, canal);
             }
             catch (Exception ex)
             {

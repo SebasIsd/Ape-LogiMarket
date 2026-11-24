@@ -10,9 +10,13 @@ public class ComprobanteDevolucion : IComprobante
     public ComprobanteDevolucion(Pedido pedido, Devolucion devolucion) { _pedido = pedido; _devolucion = devolucion; }
 
     public string Tipo => "COMPROBANTE DE DEVOLUCIÓN";
-
+    //refactor, ya que cuando no hay un comprobante de devolucion, debera decir que no hay comprobante de devolucion, y no deberia generar un documento vacio
     public Documentosalida GenerarContenido()
     {
+        if (_devolucion is null)
+        {
+            throw new InvalidOperationException($"No hay un comprobante de devolución para el pedido {_pedido.Id}.");
+        }
         var lineas = new List<string>
         {
             $"Devolución: {_devolucion.Id}",

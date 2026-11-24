@@ -23,6 +23,7 @@ using LogiMarket.WinForms.Mediator;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using LogiMarket.Infrastructure.Notifications;
 using System.Windows.Forms;
 
 namespace LogiMarket.WinForms;
@@ -157,6 +158,7 @@ internal static class Program
         services.AddSingleton<IEnvioAbstractFactory, EnvioFactory>();
 
         // --- Factory Method de notificadores ---
+        services.AddSingleton<LogDeNotificaciones>();
         services.AddSingleton<INotificadorFactory, NotificadorFactory>();
 
         // --- Singleton de métricas ---

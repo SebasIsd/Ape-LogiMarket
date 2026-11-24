@@ -1,6 +1,7 @@
 ﻿using LogiMarket.Application.Metrics;
 using LogiMarket.Application.Ports.Payments;
 using LogiMarket.WinForms.Mediator;
+using LogiMarket.WinForms.UI;
 using Microsoft.Extensions.DependencyInjection;
 using System.Windows.Forms;
 
@@ -11,6 +12,8 @@ public partial class MainForm : Form, IViewRefrescable
     // --- Propiedades para logout/cierre ---
     public bool CerrarAppSolicitado { get; private set; } = false;
     public event Action? SolicitarCerrarApp;
+    // --- Items del menú (con clave exacta de PermisosModulos) ---
+    private readonly List<(string Modulo, string Texto, string Icono, Func<Control> Creador)> _itemsMenu = new();
 
     // --- Componentes ---
     private Panel pnlSidebar;
@@ -25,9 +28,6 @@ public partial class MainForm : Form, IViewRefrescable
     private readonly ISesionUsuario _sesion;
     private readonly MetricasSesion _metricas;
     private readonly IServiceProvider _sp;
-
-    // --- Items del menú ---
-    private readonly List<(string Texto, string Icono, Func<Control> Creador)> _itemsMenu = new();
 
     public MainForm(
         IFormularioMediator mediator,
@@ -116,18 +116,31 @@ public partial class MainForm : Form, IViewRefrescable
         pnlSidebar.Controls.Clear();
         _itemsMenu.Clear();
 
-        _itemsMenu.Add(("Panel general", "📊", () => (Control)new PanelGeneralControl(_metricas, _sesion, _sp)));
-        _itemsMenu.Add(("Catálogo y kits", "📦", () => (Control)_sp.GetRequiredService<FrmCatalogo>()));
-        _itemsMenu.Add(("Clientes", "👥", () => (Control)_sp.GetRequiredService<FrmClientes>()));
-        _itemsMenu.Add(("Carrito / borrador", "🛒", () => (Control)_sp.GetRequiredService<FrmCarrito>()));
-        _itemsMenu.Add(("Pedidos e historial", "📋", () => (Control)_sp.GetRequiredService<FrmPedidos>()));
-        _itemsMenu.Add(("Cobro", "💳", () => (Control)_sp.GetRequiredService<FrmCobro>()));
-        _itemsMenu.Add(("Despacho", "🚚", () => (Control)_sp.GetRequiredService<FrmDespacho>()));
-        _itemsMenu.Add(("Devoluciones", "↩️", () => (Control)_sp.GetRequiredService<FrmDevoluciones>()));
-        _itemsMenu.Add(("Inventario", "📊", () => (Control)_sp.GetRequiredService<FrmInventario>()));
-        _itemsMenu.Add(("Reportes", "📈", () => (Control)_sp.GetRequiredService<FrmReportes>()));
-        _itemsMenu.Add(("Auditoría / pruebas", "🔍", () => (Control)_sp.GetRequiredService<FrmAuditoria>()));
-        _itemsMenu.Add(("LogiMarket · Escritorio", "ℹ️", () => (Control)_sp.GetRequiredService<FrmDemo>()));
+        // Definimos todos los módulos con su clave exacta de PermisosModulos
+        var todosLosItems = new List<(string Modulo, string Texto, string Icono, Func<Control> Creador)>
+    {
+        ("Panel", "Panel general", "📊", () => (Control)new PanelGeneralControl(_metricas, _sesion, _sp)),
+        ("Catálogo", "Catálogo y kits", "📦", () => (Control)_sp.GetRequiredService<FrmCatalogo>()),
+        ("Clientes", "Clientes", "👥", () => (Control)_sp.GetRequiredService<FrmClientes>()),
+        ("Carrito", "Carrito / borrador", "🛒", () => (Control)_sp.GetRequiredService<FrmCarrito>()),
+        ("Pedidos", "Pedidos e historial", "📋", () => (Control)_sp.GetRequiredService<FrmPedidos>()),
+        ("Cobro", "Cobro", "💳", () => (Control)_sp.GetRequiredService<FrmCobro>()),
+        ("Despacho", "Despacho", "🚚", () => (Control)_sp.GetRequiredService<FrmDespacho>()),
+        ("Devoluciones", "Devoluciones", "↩️", () => (Control)_sp.GetRequiredService<FrmDevoluciones>()),
+        ("Inventario", "Inventario", "📊", () => (Control)_sp.GetRequiredService<FrmInventario>()),
+        ("Reportes", "Reportes", "📈", () => (Control)_sp.GetRequiredService<FrmReportes>()),
+        ("Auditoría", "Auditoría / pruebas", "🔍", () => (Control)_sp.GetRequiredService<FrmAuditoria>()),
+        ("Demo", "LogiMarket · Escritorio", "ℹ️", () => (Control)_sp.GetRequiredService<FrmDemo>())
+    };
+
+        // Filtrar según el rol de la sesión actual
+        foreach (var item in todosLosItems)
+        {
+            if (PermisosModulos.PuedeVer(_sesion.Rol, item.Modulo))
+            {
+                _itemsMenu.Add(item);
+            }
+        }
 
         var pnlBotones = new Panel
         {

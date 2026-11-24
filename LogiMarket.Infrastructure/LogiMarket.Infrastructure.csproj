@@ -23,4 +23,8 @@
     <ProjectReference Include="..\LogiMarket.Domain\LogiMarket.Domain.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Notifications\" />
+  </ItemGroup>
+
 </Project>
