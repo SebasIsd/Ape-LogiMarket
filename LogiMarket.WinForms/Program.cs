@@ -165,11 +165,16 @@ internal static class Program
         services.AddSingleton<CatalogoVisualFlyweightFactory>();
 
         // --- Pipeline de validación (Chain of Responsibility) ---
-        services.AddScoped<IValidadorPedido, ClienteActivoValidator>();
-        services.AddScoped<IValidadorPedido, LineasValidator>();
-        services.AddScoped<IValidadorPedido, StockValidator>();
+        // ✅ Cadena de responsabilidad construida explícitamente en el orden correcto
         services.AddScoped<PipelineValidacionPedido>(sp =>
-            new PipelineValidacionPedido(sp.GetServices<IValidadorPedido>()));
+        {
+            var catalogo = sp.GetRequiredService<IRepositorioCatalogo>();
+            // Orden: Cliente activo → Líneas → Stock
+            var stock = new StockValidator(catalogo);
+            var lineas = new LineasValidator(stock);
+            var cliente = new ClienteActivoValidator(lineas);
+            return new PipelineValidacionPedido(cliente);
+        });
 
         // --- Command Invoker ---
         services.AddScoped<ICommandInvoker, CommandInvoker>();

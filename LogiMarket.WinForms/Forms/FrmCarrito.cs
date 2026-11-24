@@ -45,6 +45,7 @@ public class FrmCarrito : UserControl, IViewRefrescable
     private readonly CalculadoraDescuentoContext _descuentos;
     private readonly IEnvioAbstractFactory _envioFactory;
     private readonly IFormularioMediator _mediator;
+    private readonly IRepositorioPedido _repoPedidos;
 
     private Pedido? _pedidoActual;
     private readonly Stack<Pedido> _pilaDeshacer = new();
@@ -56,7 +57,8 @@ public class FrmCarrito : UserControl, IViewRefrescable
         IRepositorioCliente repoClientes,
         CalculadoraDescuentoContext descuentos,
         IEnvioAbstractFactory envioFactory,
-        IFormularioMediator mediator)
+        IFormularioMediator mediator,
+        IRepositorioPedido repoPedidos)
     {
         _catalogo = catalogo;
         _repoClientes = repoClientes;
@@ -67,6 +69,7 @@ public class FrmCarrito : UserControl, IViewRefrescable
 
         InicializarComponentes();
         Load += CargarCombos;
+        _repoPedidos = repoPedidos;
     }
 
     private void InicializarComponentes()
@@ -541,11 +544,23 @@ public class FrmCarrito : UserControl, IViewRefrescable
         try
         {
             _pedidoActual.Validar();
+            await _repoPedidos.AgregarAsync(_pedidoActual);
+
             _pilaDeshacer.Clear();
             _pilaRehacer.Clear();
-            MessageBox.Show("Pedido validado correctamente.", "Éxito",
-                MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+            MessageBox.Show("Pedido validado y guardado. Ahora está disponible en Cobro.",
+                "Éxito", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
             _mediator.NotificarPedidoConfirmado(_pedidoActual.Id);
+
+            // ★ Deshabilitar botones de edición después de validar
+            btnAgregar.Enabled = false;
+            btnQuitar.Enabled = false;
+            btnDeshacer.Enabled = false;
+            btnRehacer.Enabled = false;
+            btnClonar.Enabled = false;  // ← No se puede clonar un pedido validado
+            btnValidar.Enabled = false;
         }
         catch (Exception ex)
         {
@@ -553,7 +568,6 @@ public class FrmCarrito : UserControl, IViewRefrescable
                 MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
-
     // IViewRefrescable
     public void OnPedidoConfirmado(Guid pedidoId) { }
     public void OnStockModificado() { }

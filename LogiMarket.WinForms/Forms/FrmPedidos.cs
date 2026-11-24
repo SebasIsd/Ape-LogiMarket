@@ -39,6 +39,7 @@ public class FrmPedidos : UserControl, IViewRefrescable
         _mediator.Registrar(this);
         InicializarComponentes();
         Load += async (_, _) => await CargarPedidosAsync();
+        VisibleChanged += async (_, _) => { if (Visible) await CargarPedidosAsync(); };
     }
 
     private void InicializarComponentes()

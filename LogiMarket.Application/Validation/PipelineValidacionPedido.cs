@@ -5,6 +5,10 @@ namespace LogiMarket.Application.Validation;
 public class PipelineValidacionPedido
 {
     private readonly IValidadorPedido _head;
+    public PipelineValidacionPedido(IValidadorPedido head)
+    {
+        _head = head ?? throw new ArgumentException("Pipeline sin validadores.");
+    }
 
     public PipelineValidacionPedido(IEnumerable<IValidadorPedido> validadores)
     {

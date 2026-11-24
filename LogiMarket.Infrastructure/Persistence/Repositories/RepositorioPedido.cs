@@ -86,8 +86,20 @@ public class RepositorioPedido : IRepositorioPedido
 
     public async Task AgregarAsync(Pedido pedido, CancellationToken ct = default)
     {
+        // Adjuntar el cliente existente (ya está en BD) para que EF no lo duplique
+        if (pedido.Cliente is not null)
+        {
+            _db.Clientes.Attach(pedido.Cliente);
+            _db.Entry(pedido.Cliente).State = EntityState.Unchanged;
+        }
+
         _db.Pedidos.Add(pedido);
-        foreach (var d in pedido.Detalles) _db.PedidoDetalles.Add(d);
+
+        foreach (var d in pedido.Detalles)
+        {
+            _db.PedidoDetalles.Add(d);
+        }
+
         await _db.SaveChangesAsync(ct);
     }
 
