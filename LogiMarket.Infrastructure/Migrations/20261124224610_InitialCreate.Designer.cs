@@ -11,8 +11,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace LogiMarket.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20261124020734_InicialLimpia")]
-    partial class InicialLimpia
+    [Migration("20261124224610_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -23,7 +23,6 @@ namespace LogiMarket.Infrastructure.Migrations
             modelBuilder.Entity("LogiMarket.Domain.Entities.Auditoria", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Accion")
@@ -50,7 +49,6 @@ namespace LogiMarket.Infrastructure.Migrations
             modelBuilder.Entity("LogiMarket.Domain.Entities.Catalog.KitCompuesto", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Nombre")
@@ -74,7 +72,6 @@ namespace LogiMarket.Infrastructure.Migrations
             modelBuilder.Entity("LogiMarket.Domain.Entities.Catalog.ProductoSimple", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Nombre")
@@ -109,7 +106,6 @@ namespace LogiMarket.Infrastructure.Migrations
             modelBuilder.Entity("LogiMarket.Domain.Entities.Cliente", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
                     b.Property<bool>("Activo")
@@ -154,7 +150,6 @@ namespace LogiMarket.Infrastructure.Migrations
             modelBuilder.Entity("LogiMarket.Domain.Entities.Despacho", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime>("FechaDespacho")
@@ -193,7 +188,6 @@ namespace LogiMarket.Infrastructure.Migrations
             modelBuilder.Entity("LogiMarket.Domain.Entities.Devolucion", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
                     b.Property<bool>("Aceptada")
@@ -225,7 +219,6 @@ namespace LogiMarket.Infrastructure.Migrations
             modelBuilder.Entity("LogiMarket.Domain.Entities.EventoOutbox", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CreadoEn")
@@ -257,7 +250,6 @@ namespace LogiMarket.Infrastructure.Migrations
             modelBuilder.Entity("LogiMarket.Domain.Entities.MovimientoInventario", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
                     b.Property<int>("Cantidad")
@@ -295,7 +287,6 @@ namespace LogiMarket.Infrastructure.Migrations
             modelBuilder.Entity("LogiMarket.Domain.Entities.Pago", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
                     b.Property<string>("ClaveIdempotencia")
@@ -340,7 +331,6 @@ namespace LogiMarket.Infrastructure.Migrations
             modelBuilder.Entity("LogiMarket.Domain.Entities.Pedido", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
                     b.Property<Guid>("ClienteId")
@@ -403,7 +393,6 @@ namespace LogiMarket.Infrastructure.Migrations
             modelBuilder.Entity("LogiMarket.Domain.Entities.PedidoDetalle", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
                     b.Property<int>("Cantidad")
@@ -439,7 +428,6 @@ namespace LogiMarket.Infrastructure.Migrations
             modelBuilder.Entity("LogiMarket.Domain.Entities.Usuario", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
                     b.Property<bool>("Activo")
@@ -471,7 +459,6 @@ namespace LogiMarket.Infrastructure.Migrations
             modelBuilder.Entity("LogiMarket.Infrastructure.Persistence.Entities.KitComponenteEntity", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
                     b.Property<int>("Cantidad")

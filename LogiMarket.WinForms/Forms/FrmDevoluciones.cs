@@ -24,6 +24,9 @@ public class FrmDevoluciones : UserControl, IViewRefrescable
     private Label lbReembolso;
     private Button btnProcesar;
     private TableLayoutPanel pnlRaiz;
+    // Dentro de FrmDevoluciones:
+    private CheckBox chkSimularDias;
+    private NumericUpDown nudDiasSimulados;
 
     private readonly IRepositorioPedido _repo;
     private readonly DevolucionService _servicio;
@@ -117,7 +120,48 @@ public class FrmDevoluciones : UserControl, IViewRefrescable
             ColumnCount = 2,
             RowCount = 4,
             Padding = new Padding(15, 10, 15, 10)
+
         };
+        var pnlDias = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents = false,
+            Margin = new Padding(0)
+        };
+        lbDiasTranscurridos = new Label
+        {
+            Text = "—",
+            AutoSize = true,
+            Font = UIHelper.FuenteNormal,
+            Margin = new Padding(0, 8, 10, 0)
+        };
+        chkSimularDias = new CheckBox
+        {
+            Text = "Simular:",
+            AutoSize = true,
+            Font = UIHelper.FuenteNormal,
+            Margin = new Padding(0, 7, 4, 0)
+        };
+        nudDiasSimulados = new NumericUpDown
+        {
+            Width = 65,
+            Minimum = 0,
+            Maximum = 365,
+            Value = 0,
+            Enabled = false,
+            Font = UIHelper.FuenteNormal,
+            Margin = new Padding(0, 4, 0, 0)
+        };
+        chkSimularDias.CheckedChanged += (_, _) =>
+        {
+            nudDiasSimulados.Enabled = chkSimularDias.Checked;
+            ActualizarEtiquetaDias();
+        };
+        nudDiasSimulados.ValueChanged += (_, _) => ActualizarEtiquetaDias();
+
+        pnlDias.Controls.AddRange(new Control[] { lbDiasTranscurridos, chkSimularDias, nudDiasSimulados });
+        pnlDevolucion.Controls.Add(pnlDias, 1, 1);
         pnlDevolucion.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150));
         pnlDevolucion.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
 
@@ -143,6 +187,27 @@ public class FrmDevoluciones : UserControl, IViewRefrescable
         pnlRaiz.Controls.Add(grpDevolucion, 1, 1);
 
         Controls.Add(pnlRaiz);
+    }
+    private int ObtenerDiasEfectivos()
+    {
+        if (chkSimularDias is not null && chkSimularDias.Checked)
+            return (int)nudDiasSimulados.Value;
+
+        if (_pedidoSeleccionado is null) return 0;
+        return (int)(DateTime.UtcNow - (_pedidoSeleccionado.FechaEntrega ?? DateTime.UtcNow)).TotalDays;
+    }
+
+    private void ActualizarEtiquetaDias()
+    {
+        if (_pedidoSeleccionado is null)
+        {
+            lbDiasTranscurridos.Text = "—";
+            return;
+        }
+
+        var dias = ObtenerDiasEfectivos();
+        var sufijo = (chkSimularDias?.Checked == true) ? " (simulado)" : "";
+        lbDiasTranscurridos.Text = $"{dias} día(s){sufijo}";
     }
 
     private async Task CargarPedidosAsync()

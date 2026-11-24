@@ -5,7 +5,6 @@ using LogiMarket.Domain.Builders;
 using LogiMarket.Domain.Entities;
 using LogiMarket.Domain.Entities.Catalog;
 using LogiMarket.Domain.Enums;
-using LogiMarket.Domain.ValueObjects;
 using LogiMarket.WinForms.Mediator;
 using LogiMarket.WinForms.UI;
 using System.Windows.Forms;
@@ -22,6 +21,7 @@ public class FrmCarrito : UserControl, IViewRefrescable
     private Label lbCantidad;
     private NumericUpDown nudCantidad;
     private Button btnAgregar;
+    private Button btnActualizarCant;
     private Button btnQuitar;
     private Button btnDeshacer;
     private Button btnRehacer;
@@ -39,7 +39,7 @@ public class FrmCarrito : UserControl, IViewRefrescable
     private ComboBox cmbEnvio;
     private TableLayoutPanel pnlRaiz;
 
-    // --- Estado ---
+    // --- Dependencias ---
     private readonly IRepositorioCatalogo _catalogo;
     private readonly IRepositorioCliente _repoClientes;
     private readonly CalculadoraDescuentoContext _descuentos;
@@ -47,10 +47,12 @@ public class FrmCarrito : UserControl, IViewRefrescable
     private readonly IFormularioMediator _mediator;
     private readonly IRepositorioPedido _repoPedidos;
 
-    private Pedido? _pedidoActual;
-    private readonly Stack<Pedido> _pilaDeshacer = new();
-    private readonly Stack<Pedido> _pilaRehacer = new();
-    private const int MAX_HISTORIAL = 5;
+    // --- Estado persistente entre cambios de pestaña ---
+    private static Pedido? _pedidoActual;
+    private static Pedido? _borradorOriginal;
+    private static readonly Stack<Pedido?> _pilaDeshacer = new();
+    private static readonly Stack<Pedido?> _pilaRehacer = new();
+    private const int MAX_HISTORIAL = 10;
 
     public FrmCarrito(
         IRepositorioCatalogo catalogo,
@@ -72,11 +74,18 @@ public class FrmCarrito : UserControl, IViewRefrescable
         Load += CargarCombos;
     }
 
+    private static string ObtenerMensaje(Exception ex)
+    {
+        var actual = ex;
+        while (actual.InnerException is not null)
+            actual = actual.InnerException;
+        return actual.Message;
+    }
+
     private void InicializarComponentes()
     {
         BackColor = UIHelper.ColorGrisClaro;
 
-        // --- Layout principal: barra superior (auto) + grid (flexible) + inferior (auto) ---
         pnlRaiz = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
@@ -85,12 +94,12 @@ public class FrmCarrito : UserControl, IViewRefrescable
             Padding = new Padding(15),
             BackColor = UIHelper.ColorGrisClaro
         };
-        pnlRaiz.RowStyles.Add(new RowStyle(SizeType.AutoSize));      // 0: Barra superior
-        pnlRaiz.RowStyles.Add(new RowStyle(SizeType.Percent, 100));  // 1: Grid
-        pnlRaiz.RowStyles.Add(new RowStyle(SizeType.AutoSize));      // 2: Panel inferior
+        pnlRaiz.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        pnlRaiz.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        pnlRaiz.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
         // ============================================
-        // BARRA SUPERIOR: Cliente | Producto | Cantidad | Botones
+        // BARRA SUPERIOR
         // ============================================
         var pnlSuperior = new FlowLayoutPanel
         {
@@ -105,51 +114,56 @@ public class FrmCarrito : UserControl, IViewRefrescable
 
         lbCliente = UIHelper.CrearLabel("Cliente:", negrita: true);
         lbCliente.Margin = new Padding(0, 8, 5, 4);
-        cmbClientes = UIHelper.CrearComboBox(160);
-        cmbClientes.Margin = new Padding(0, 5, 12, 4);
+        cmbClientes = UIHelper.CrearComboBox(150);
+        cmbClientes.Margin = new Padding(0, 5, 10, 4);
 
         lbProducto = UIHelper.CrearLabel("Producto/Kit:", negrita: true);
         lbProducto.Margin = new Padding(0, 8, 5, 4);
-        cmbProductos = UIHelper.CrearComboBox(175);
-        cmbProductos.Margin = new Padding(0, 5, 12, 4);
+        cmbProductos = UIHelper.CrearComboBox(165);
+        cmbProductos.Margin = new Padding(0, 5, 10, 4);
 
-        lbCantidad = UIHelper.CrearLabel("Cantidad:", negrita: true);
+        lbCantidad = UIHelper.CrearLabel("Cant.:", negrita: true);
         lbCantidad.Margin = new Padding(0, 8, 5, 4);
         nudCantidad = new NumericUpDown
         {
-            Width = 65,
+            Width = 60,
             Minimum = 1,
             Maximum = 999,
             Value = 1,
             Font = UIHelper.FuenteNormal,
-            Margin = new Padding(0, 5, 12, 4)
+            Margin = new Padding(0, 5, 10, 4)
         };
 
-        btnAgregar = UIHelper.CrearBotonSecundario("Agregar", 85);
-        btnAgregar.Margin = new Padding(4, 4, 4, 4);
-        btnAgregar.Click += async (_, _) => await AgregarLineaAsync();
+        btnAgregar = UIHelper.CrearBotonSecundario("Agregar", 80);
+        btnAgregar.Margin = new Padding(3, 4, 3, 4);
+        btnAgregar.Click += (_, _) => AgregarLinea();
 
-        btnQuitar = UIHelper.CrearBotonPeligro("Quitar", 78);
-        btnQuitar.Margin = new Padding(4, 4, 4, 4);
+        btnActualizarCant = UIHelper.CrearBoton("✎ Cant.", UIHelper.ColorPrimario, ancho: 78);
+        btnActualizarCant.Margin = new Padding(3, 4, 3, 4);
+        btnActualizarCant.Click += (_, _) => ActualizarCantidadSeleccionada();
+
+        btnQuitar = UIHelper.CrearBotonPeligro("Quitar", 72);
+        btnQuitar.Margin = new Padding(3, 4, 3, 4);
         btnQuitar.Click += QuitarLinea;
 
-        btnDeshacer = UIHelper.CrearBotonGris("↶ Deshacer", 98);
-        btnDeshacer.Margin = new Padding(4, 4, 4, 4);
+        btnDeshacer = UIHelper.CrearBotonGris("↶ Deshacer", 95);
+        btnDeshacer.Margin = new Padding(3, 4, 3, 4);
         btnDeshacer.Click += (_, _) => Deshacer();
 
-        btnRehacer = UIHelper.CrearBotonGris("↷ Rehacer", 98);
-        btnRehacer.Margin = new Padding(4, 4, 4, 4);
+        btnRehacer = UIHelper.CrearBotonGris("↷ Rehacer", 95);
+        btnRehacer.Margin = new Padding(3, 4, 3, 4);
         btnRehacer.Click += (_, _) => Rehacer();
 
-        btnClonar = UIHelper.CrearBoton("⎘ Clonar", UIHelper.ColorInfo, ancho: 88);
-        btnClonar.Margin = new Padding(4, 4, 4, 4);
+        btnClonar = UIHelper.CrearBoton("⎘ Clonar", UIHelper.ColorInfo, ancho: 84);
+        btnClonar.Margin = new Padding(3, 4, 3, 4);
         btnClonar.Click += (_, _) => ClonarBorrador();
 
-        btnLimpiar = UIHelper.CrearBotonGris("✕ Limpiar", 88);
-        btnLimpiar.Margin = new Padding(4, 4, 4, 4);
+        btnLimpiar = UIHelper.CrearBotonGris("✕ Limpiar", 84);
+        btnLimpiar.Margin = new Padding(3, 4, 3, 4);
         btnLimpiar.Click += (_, _) =>
         {
             _pedidoActual = null;
+            _borradorOriginal = null;
             _pilaDeshacer.Clear();
             _pilaRehacer.Clear();
             EstablecerEdicionHabilitada(true);
@@ -162,7 +176,7 @@ public class FrmCarrito : UserControl, IViewRefrescable
             lbCliente, cmbClientes,
             lbProducto, cmbProductos,
             lbCantidad, nudCantidad,
-            btnAgregar, btnQuitar,
+            btnAgregar, btnActualizarCant, btnQuitar,
             btnDeshacer, btnRehacer,
             btnClonar, btnLimpiar
         });
@@ -195,7 +209,7 @@ public class FrmCarrito : UserControl, IViewRefrescable
         pnlRaiz.Controls.Add(dgvCarrito, 0, 1);
 
         // ============================================
-        // PANEL INFERIOR: Resumen (izquierda) + Botón Validar (derecha)
+        // PANEL INFERIOR
         // ============================================
         var pnlInferior = new TableLayoutPanel
         {
@@ -210,7 +224,6 @@ public class FrmCarrito : UserControl, IViewRefrescable
         pnlInferior.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 72));
         pnlInferior.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 28));
 
-        // --- Grupo Resumen ---
         grpTotales = UIHelper.CrearGroupBox("Resumen del pedido");
         grpTotales.Dock = DockStyle.Fill;
         grpTotales.AutoSize = true;
@@ -236,7 +249,6 @@ public class FrmCarrito : UserControl, IViewRefrescable
         pnlTotales.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
         pnlTotales.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
 
-        // Fila 0: Subtotal | Estrategia
         var lblSub = UIHelper.CrearLabel("Subtotal:", negrita: true);
         lblSub.Anchor = AnchorStyles.Left | AnchorStyles.None;
         pnlTotales.Controls.Add(lblSub, 0, 0);
@@ -263,7 +275,6 @@ public class FrmCarrito : UserControl, IViewRefrescable
         };
         pnlTotales.Controls.Add(lbEstrategia, 3, 0);
 
-        // Fila 1: Descuento | Envío
         var lblDesc = UIHelper.CrearLabel("Descuento:", negrita: true);
         lblDesc.Anchor = AnchorStyles.Left | AnchorStyles.None;
         pnlTotales.Controls.Add(lblDesc, 0, 1);
@@ -286,9 +297,9 @@ public class FrmCarrito : UserControl, IViewRefrescable
         cmbEnvio.Items.AddRange(new object[] { "ESTÁNDAR", "EXPRÉS" });
         cmbEnvio.SelectedIndex = 0;
         cmbEnvio.SelectedIndexChanged += (_, _) => Recalcular();
+        cmbClientes.SelectedIndexChanged += (_, _) => Recalcular();
         pnlTotales.Controls.Add(cmbEnvio, 3, 1);
 
-        // Fila 2: Tarifa
         var lblTar = UIHelper.CrearLabel("Tarifa:", negrita: true);
         lblTar.Anchor = AnchorStyles.Left | AnchorStyles.None;
         pnlTotales.Controls.Add(lblTar, 0, 2);
@@ -302,7 +313,6 @@ public class FrmCarrito : UserControl, IViewRefrescable
         };
         pnlTotales.Controls.Add(lbTarifa, 1, 2);
 
-        // Fila 3: TOTAL
         var lblTot = UIHelper.CrearLabel("TOTAL:", negrita: true);
         lblTot.Anchor = AnchorStyles.Left | AnchorStyles.None;
         pnlTotales.Controls.Add(lblTot, 0, 3);
@@ -321,7 +331,6 @@ public class FrmCarrito : UserControl, IViewRefrescable
         grpTotales.Controls.Add(pnlTotales);
         pnlInferior.Controls.Add(grpTotales, 0, 0);
 
-        // --- Botón Validar (centrado en su celda) ---
         var pnlBotonValidar = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
@@ -349,6 +358,7 @@ public class FrmCarrito : UserControl, IViewRefrescable
     private void EstablecerEdicionHabilitada(bool habilitada)
     {
         btnAgregar.Enabled = habilitada;
+        btnActualizarCant.Enabled = habilitada;
         btnQuitar.Enabled = habilitada;
         btnDeshacer.Enabled = habilitada;
         btnRehacer.Enabled = habilitada;
@@ -376,21 +386,32 @@ public class FrmCarrito : UserControl, IViewRefrescable
             cmbClientes.DataSource = clientes;
             cmbClientes.DisplayMember = "Nombre";
             cmbClientes.ValueMember = "Id";
-            if (clienteSel.HasValue) cmbClientes.SelectedValue = clienteSel.Value;
+            if (_pedidoActual is not null)
+                cmbClientes.SelectedValue = _pedidoActual.ClienteId;
+            else if (clienteSel.HasValue)
+                cmbClientes.SelectedValue = clienteSel.Value;
 
             var elementos = await _catalogo.ListarTodoAsync();
             cmbProductos.DataSource = elementos;
             cmbProductos.DisplayMember = "Nombre";
             cmbProductos.ValueMember = "Sku";
             if (productoSel is not null) cmbProductos.SelectedValue = productoSel;
+
+            // Restaurar vista si ya había un borrador en memoria al volver a esta pestaña
+            if (_pedidoActual is not null)
+            {
+                EstablecerEdicionHabilitada(_pedidoActual.EstadoActual == "BORRADOR");
+                Recalcular();
+                RefrescarGrid();
+            }
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Error: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show($"Error: {ObtenerMensaje(ex)}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
 
-    private async Task AgregarLineaAsync()
+    private void AgregarLinea()
     {
         if (cmbProductos.SelectedItem is not IElementoCatalogo elemento)
         {
@@ -399,44 +420,103 @@ public class FrmCarrito : UserControl, IViewRefrescable
             return;
         }
 
-        GuardarMemento();
-
-        if (_pedidoActual is null)
+        try
         {
-            var cliente = (Cliente?)cmbClientes.SelectedItem;
-            if (cliente is null)
+            // Capturamos snapshot ANTES de modificar (incluso si es null)
+            var snapshotAnterior = _pedidoActual is not null ? (Pedido)_pedidoActual.Clone() : null;
+
+            if (_pedidoActual is null)
             {
-                MessageBox.Show("Seleccione un cliente.", "Aviso",
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
+                var cliente = (Cliente?)cmbClientes.SelectedItem;
+                if (cliente is null)
+                {
+                    MessageBox.Show("Seleccione un cliente.", "Aviso",
+                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                var builder = new PedidoBuilder()
+                    .ConCliente(cliente)
+                    .ConEnvio(cmbEnvio.SelectedIndex == 0 ? TipoEnvio.Estandar : TipoEnvio.Expres)
+                    .AgregarLinea(elemento, (int)nudCantidad.Value);
+                _pedidoActual = builder.Construir();
+            }
+            else
+            {
+                _pedidoActual.AgregarLinea(elemento, (int)nudCantidad.Value);
             }
 
-            var builder = new PedidoBuilder()
-                .ConCliente(cliente)
-                .ConEnvio(cmbEnvio.SelectedIndex == 0 ? TipoEnvio.Estandar : TipoEnvio.Expres)
-                .AgregarLinea(elemento, (int)nudCantidad.Value);
-            _pedidoActual = builder.Construir();
+            GuardarEnPilaDeshacer(snapshotAnterior);
+            _pilaRehacer.Clear();
+            Recalcular();
+            RefrescarGrid();
         }
-        else
+        catch (Exception ex)
         {
-            _pedidoActual.AgregarLinea(elemento, (int)nudCantidad.Value);
+            MessageBox.Show(ObtenerMensaje(ex), "Aviso", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+    }
+
+    private void ActualizarCantidadSeleccionada()
+    {
+        if (_pedidoActual is null || dgvCarrito.CurrentRow is null)
+        {
+            MessageBox.Show("Seleccione una fila del carrito para cambiar su cantidad.", "Aviso",
+                MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
         }
 
-        Recalcular();
-        RefrescarGrid();
+        try
+        {
+            var sku = dgvCarrito.CurrentRow.Cells["colSku"].Value?.ToString();
+            if (string.IsNullOrEmpty(sku)) return;
+
+            var snapshotAnterior = (Pedido)_pedidoActual.Clone();
+            _pedidoActual.ActualizarCantidad(sku, (int)nudCantidad.Value);
+
+            GuardarEnPilaDeshacer(snapshotAnterior);
+            _pilaRehacer.Clear();
+            Recalcular();
+            RefrescarGrid();
+
+            // Si existe un original clonado, mostramos la evidencia de copia profunda (P14)
+            if (_borradorOriginal is not null)
+            {
+                var cantClon = _pedidoActual.Detalles.FirstOrDefault(d => d.Sku == sku)?.Cantidad ?? 0;
+                var cantOrig = _borradorOriginal.Detalles.FirstOrDefault(d => d.Sku == sku)?.Cantidad ?? 0;
+                MessageBox.Show(
+                    $"Cantidad actualizada en el clon (copia profunda):\n" +
+                    $"• Clon ID {_pedidoActual.Id.ToString("N")[..8]}: {cantClon} ud(s)\n" +
+                    $"• Original ID {_borradorOriginal.Id.ToString("N")[..8]}: {cantOrig} ud(s) (intacto)",
+                    "Prototype (P14)", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(ObtenerMensaje(ex), "Aviso", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
     }
 
     private void QuitarLinea(object? sender, EventArgs e)
     {
         if (_pedidoActual is null || dgvCarrito.CurrentRow is null) return;
 
-        GuardarMemento();
-        var sku = dgvCarrito.CurrentRow.Cells["colSku"].Value?.ToString();
-        if (sku is not null)
+        try
         {
+            var sku = dgvCarrito.CurrentRow.Cells["colSku"].Value?.ToString();
+            if (string.IsNullOrEmpty(sku)) return;
+
+            var snapshotAnterior = (Pedido)_pedidoActual.Clone();
             _pedidoActual.QuitarLinea(sku);
+
+            GuardarEnPilaDeshacer(snapshotAnterior);
+            _pilaRehacer.Clear();
             Recalcular();
             RefrescarGrid();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(ObtenerMensaje(ex), "Aviso", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
     }
 
@@ -448,21 +528,28 @@ public class FrmCarrito : UserControl, IViewRefrescable
             return;
         }
 
-        var unidades = _pedidoActual.Detalles.Sum(d => d.Cantidad);
-        var cliente = (Cliente?)cmbClientes.SelectedItem;
-        var categoria = cliente?.Categoria ?? CategoriaCliente.Normal;
+        try
+        {
+            var unidades = _pedidoActual.UnidadesFisicasFinales();
+            var cliente = (Cliente?)cmbClientes.SelectedItem;
+            var categoria = cliente?.Categoria ?? CategoriaCliente.Normal;
 
-        var (estrategia, descuento) = _descuentos.Calcular(_pedidoActual.Subtotal, unidades, categoria);
-        var familia = _envioFactory.Crear(cmbEnvio.SelectedIndex == 0 ? TipoEnvio.Estandar : TipoEnvio.Expres);
+            var (estrategia, descuento) = _descuentos.Calcular(_pedidoActual.Subtotal, unidades, categoria);
+            var familia = _envioFactory.Crear(cmbEnvio.SelectedIndex == 0 ? TipoEnvio.Estandar : TipoEnvio.Expres);
 
-        _pedidoActual.AplicarDescuento(descuento, estrategia.Nombre);
-        _pedidoActual.AplicarTarifa(familia.CalcularTarifa());
+            _pedidoActual.AplicarDescuento(descuento, estrategia.Nombre);
+            _pedidoActual.AplicarTarifa(familia.CalcularTarifa());
 
-        lbSubtotal.Text = $"$ {_pedidoActual.Subtotal.Amount:0.00}";
-        lbDescuento.Text = $"$ {_pedidoActual.Descuento.Amount:0.00}";
-        lbEstrategia.Text = _pedidoActual.EstrategiaDescuentoAplicada;
-        lbTarifa.Text = $"$ {_pedidoActual.TarifaEnvio.Amount:0.00}";
-        lbTotal.Text = $"$ {_pedidoActual.Total.Amount:0.00}";
+            lbSubtotal.Text = $"$ {_pedidoActual.Subtotal.Amount:0.00}";
+            lbDescuento.Text = $"$ {_pedidoActual.Descuento.Amount:0.00}";
+            lbEstrategia.Text = _pedidoActual.EstrategiaDescuentoAplicada;
+            lbTarifa.Text = $"$ {_pedidoActual.TarifaEnvio.Amount:0.00}";
+            lbTotal.Text = $"$ {_pedidoActual.Total.Amount:0.00}";
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(ObtenerMensaje(ex), "Aviso", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
     }
 
     private void RefrescarGrid()
@@ -477,18 +564,17 @@ public class FrmCarrito : UserControl, IViewRefrescable
         }
     }
 
-    // --- MEMENTO: captura de estado ---
-    private void GuardarMemento()
+    // --- MEMENTO ---
+    private static void GuardarEnPilaDeshacer(Pedido? snapshot)
     {
-        if (_pedidoActual is null) return;
-        _pilaDeshacer.Push((Pedido)_pedidoActual.Clone());
+        _pilaDeshacer.Push(snapshot);
         if (_pilaDeshacer.Count > MAX_HISTORIAL)
         {
             var temp = _pilaDeshacer.ToArray();
             _pilaDeshacer.Clear();
-            for (int i = temp.Length - 1; i >= 0; i--) _pilaDeshacer.Push(temp[i]);
+            for (int i = temp.Length - 1; i >= 0; i--)
+                _pilaDeshacer.Push(temp[i]);
         }
-        _pilaRehacer.Clear();
     }
 
     private void Deshacer()
@@ -499,11 +585,18 @@ public class FrmCarrito : UserControl, IViewRefrescable
                 MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
         }
-        if (_pedidoActual is not null)
-            _pilaRehacer.Push(_pedidoActual);
-        _pedidoActual = _pilaDeshacer.Pop();
-        Recalcular();
-        RefrescarGrid();
+
+        try
+        {
+            _pilaRehacer.Push(_pedidoActual is not null ? (Pedido)_pedidoActual.Clone() : null);
+            _pedidoActual = _pilaDeshacer.Pop();
+            Recalcular();
+            RefrescarGrid();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(ObtenerMensaje(ex), "Aviso", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
     }
 
     private void Rehacer()
@@ -514,14 +607,21 @@ public class FrmCarrito : UserControl, IViewRefrescable
                 MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
         }
-        if (_pedidoActual is not null)
-            _pilaDeshacer.Push(_pedidoActual);
-        _pedidoActual = _pilaRehacer.Pop();
-        Recalcular();
-        RefrescarGrid();
+
+        try
+        {
+            _pilaDeshacer.Push(_pedidoActual is not null ? (Pedido)_pedidoActual.Clone() : null);
+            _pedidoActual = _pilaRehacer.Pop();
+            Recalcular();
+            RefrescarGrid();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(ObtenerMensaje(ex), "Aviso", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
     }
 
-    // --- PROTOTYPE: clonar borrador ---
+    // --- PROTOTYPE ---
     private void ClonarBorrador()
     {
         if (_pedidoActual is null)
@@ -530,14 +630,31 @@ public class FrmCarrito : UserControl, IViewRefrescable
                 MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
         }
-        var clon = (Pedido)_pedidoActual.Clone();
-        _pedidoActual = clon;
-        _pilaDeshacer.Clear();
-        _pilaRehacer.Clear();
-        MessageBox.Show("Borrador clonado (nuevo ID). La copia es profunda.",
-            "Prototype", MessageBoxButtons.OK, MessageBoxIcon.Information);
-        Recalcular();
-        RefrescarGrid();
+
+        try
+        {
+            var original = (Pedido)_pedidoActual.Clone();
+            var clon = (Pedido)_pedidoActual.Clone();
+
+            GuardarEnPilaDeshacer((Pedido)_pedidoActual.Clone());
+            _borradorOriginal = original;
+            _pedidoActual = clon;
+            _pilaRehacer.Clear();
+
+            MessageBox.Show(
+                $"Borrador clonado (copia profunda).\n" +
+                $"• Original ID: {original.Id.ToString("N")[..8]}\n" +
+                $"• Clon ID:     {clon.Id.ToString("N")[..8]}\n\n" +
+                $"Ahora selecciona la fila, cambia Cantidad y pulsa '✎ Cant.' para editar solo el clon.",
+                "Prototype", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+            Recalcular();
+            RefrescarGrid();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(ObtenerMensaje(ex), "Aviso", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
     }
 
     private async Task ValidarPedidoAsync()
@@ -565,9 +682,7 @@ public class FrmCarrito : UserControl, IViewRefrescable
         }
         catch (Exception ex)
         {
-            var causa = ex;
-            while (causa.InnerException is not null) causa = causa.InnerException;
-            MessageBox.Show($"Error de validación: {causa.Message}", "Rechazo",
+            MessageBox.Show($"Error de validación: {ObtenerMensaje(ex)}", "Rechazo",
                 MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }

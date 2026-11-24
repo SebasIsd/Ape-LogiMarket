@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("LogiMarket.Domain")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+091500d58c1e24e994d2b46c822889e2c200d852")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+36340526588f53494be8862bdd01520780c06232")]
 [assembly: System.Reflection.AssemblyProductAttribute("LogiMarket.Domain")]
 [assembly: System.Reflection.AssemblyTitleAttribute("LogiMarket.Domain")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

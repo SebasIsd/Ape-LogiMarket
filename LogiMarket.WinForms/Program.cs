@@ -13,6 +13,7 @@ using LogiMarket.Application.UseCases.Devoluciones;
 using LogiMarket.Application.Validation;
 using LogiMarket.Infrastructure.Catalog;
 using LogiMarket.Infrastructure.Documents;
+using LogiMarket.Infrastructure.Notifications;
 using LogiMarket.Infrastructure.Outbox;
 using LogiMarket.Infrastructure.Payments;
 using LogiMarket.Infrastructure.Persistence;
@@ -20,10 +21,10 @@ using LogiMarket.Infrastructure.Persistence.Repositories;
 using LogiMarket.Infrastructure.Persistence.Seed;
 using LogiMarket.WinForms.Forms;
 using LogiMarket.WinForms.Mediator;
+using LogiMarket.WinForms.UI;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using LogiMarket.Infrastructure.Notifications;
 using System.Windows.Forms;
 
 namespace LogiMarket.WinForms;
@@ -185,6 +186,9 @@ internal static class Program
         // --- Observer (Outbox) ---
         services.AddScoped<IPublisher, OutboxPublisher>();
         services.AddScoped<OutboxProcessor>();
+
+        // --- Carrito de compras (sesión) ---
+        services.AddScoped<CarritoSesion>();
 
         // --- Bridge: salidas de documentos ---
         services.AddSingleton<ISalidaDocumento>(sp =>

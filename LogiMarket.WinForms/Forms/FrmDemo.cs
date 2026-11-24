@@ -1,4 +1,5 @@
 ﻿using LogiMarket.Application.Ports.Payments;
+using LogiMarket.Application.Ports.Persistence;
 using LogiMarket.Domain.Enums;
 using LogiMarket.WinForms.Mediator;
 using LogiMarket.WinForms.UI;
@@ -22,11 +23,13 @@ public class FrmDemo : UserControl, IViewRefrescable
 
     private readonly ISesionUsuario _sesion;
     private readonly IFormularioMediator _mediator;
+    private readonly IRepositorioOutbox _repoOutbox;
 
-    public FrmDemo(ISesionUsuario sesion, IFormularioMediator mediator)
+    public FrmDemo(ISesionUsuario sesion, IFormularioMediator mediator, IRepositorioOutbox repoOutbox)
     {
         _sesion = sesion;
         _mediator = mediator;
+        _repoOutbox = repoOutbox;
         _mediator.Registrar(this);
         InicializarComponentes();
     }
@@ -97,7 +100,7 @@ public class FrmDemo : UserControl, IViewRefrescable
         pnlAdapter.Controls.Add(cmbProveedor, 1, 0);
 
         btnCambiarProveedor = UIHelper.CrearBotonSecundario("Cambiar proveedor", 180);
-        btnCambiarProveedor.Click += (_, _) => MessageBox.Show($"Proveedor cambiado a: {cmbProveedor.SelectedItem}", "Adapter", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        btnCambiarProveedor.Click += CambiarProveedor;
         pnlAdapter.Controls.Add(btnCambiarProveedor, 1, 1);
 
         grpAdapter.Controls.Add(pnlAdapter);
@@ -115,7 +118,7 @@ public class FrmDemo : UserControl, IViewRefrescable
         };
 
         btnSimularFallo = UIHelper.CrearBotonPeligro("Simular fallo de notificador", 200);
-        btnSimularFallo.Click += (_, _) => MessageBox.Show("Evento Outbox marcado como fallido. Se reintentará en el próximo procesamiento.", "Outbox", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        btnSimularFallo.Click += SimularFalloNotificador;
         pnlOutbox.Controls.Add(btnSimularFallo, 0, 0);
 
         grpOutbox.Controls.Add(pnlOutbox);
@@ -148,6 +151,51 @@ public class FrmDemo : UserControl, IViewRefrescable
             txtLog.AppendText($"  ✓ Autorizado: el cobro llegaría al Decorator → Adapter\r\n");
         else
             txtLog.AppendText($"  ✗ Rechazado por Proxy: rol {rolSeleccionado} no tiene permiso\r\n");
+    }
+    private void CambiarProveedor(object? sender, EventArgs e)
+    {
+        var proveedor = cmbProveedor.SelectedItem?.ToString() ?? "Legado (Centavos)";
+        var detalle = proveedor.Contains("Legado", StringComparison.OrdinalIgnoreCase)
+            ? "PasarelaLegadaAdapter: convierte USD a centavos (x100) y retorna referencia LEG-..."
+            : "PasarelaAlternativaSimulada: procesa monto directo sin conversión a centavos";
+
+        txtLog.AppendText($"[{DateTime.Now:HH:mm:ss}] Adapter (P16): proveedor seleccionado -> {proveedor}\r\n");
+        txtLog.AppendText($"  → {detalle}\r\n");
+
+        MessageBox.Show($"Proveedor seleccionado: {proveedor}", "Adapter",
+            MessageBoxButtons.OK, MessageBoxIcon.Information);
+    }
+
+    private async void SimularFalloNotificador(object? sender, EventArgs e)
+    {
+        try
+        {
+            var eventos = await _repoOutbox.ListarRecientesAsync(10);
+            var objetivo = eventos.FirstOrDefault(x => !x.Procesado) ?? eventos.FirstOrDefault();
+
+            if (objetivo is null)
+            {
+                txtLog.AppendText($"[{DateTime.Now:HH:mm:ss}] Outbox (P37): no hay eventos en Outbox para simular fallo\r\n");
+                MessageBox.Show("No hay eventos en Outbox. Cobra un pedido primero.", "Outbox",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            await _repoOutbox.IncrementarReintentoAsync(objetivo.Id);
+            _mediator.NotificarPedidoConfirmado(objetivo.Id);
+
+            var idCorto = objetivo.Id.ToString("N")[..8];
+            txtLog.AppendText($"[{DateTime.Now:HH:mm:ss}] Outbox (P37): fallo simulado en evento {idCorto} ({objetivo.TipoEvento})\r\n");
+            txtLog.AppendText($"  ⚠ Reintento incrementado en BD (actual: {objetivo.Reintentos})\r\n");
+
+            MessageBox.Show($"Reintento incrementado en evento {idCorto}. Se reintentará al procesar Outbox.",
+                "Outbox", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+        catch (Exception ex)
+        {
+            txtLog.AppendText($"[{DateTime.Now:HH:mm:ss}] Error simulando fallo Outbox: {ex.Message}\r\n");
+            MessageBox.Show($"Error: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
     }
 
     // IViewRefrescable

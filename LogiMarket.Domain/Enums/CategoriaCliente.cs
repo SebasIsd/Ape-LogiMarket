@@ -3,5 +3,6 @@
 public enum CategoriaCliente
 {
     Normal,
-    Vip
+    Vip,
+    Mayorista
 }

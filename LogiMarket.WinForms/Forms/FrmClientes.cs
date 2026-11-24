@@ -127,7 +127,7 @@ public partial class FrmClientes : UserControl, IViewRefrescable
         pnlFormulario.Controls.Add(UIHelper.CrearLabel("Categoría:", negrita: true), 0, 4);
         cmbCategoria = UIHelper.CrearComboBox();
         cmbCategoria.Dock = DockStyle.Fill;
-        cmbCategoria.Items.AddRange(new object[] { "Normal", "VIP" });
+        cmbCategoria.Items.AddRange(new object[] { "Normal", "VIP", "Mayorista" });
         cmbCategoria.SelectedIndex = 0;
         pnlFormulario.Controls.Add(cmbCategoria, 1, 4);
 
@@ -198,7 +198,14 @@ public partial class FrmClientes : UserControl, IViewRefrescable
         txtNombre.Text = dgvClientes.CurrentRow.Cells["colNombre"].Value?.ToString();
         txtCorreo.Text = dgvClientes.CurrentRow.Cells["colCorreo"].Value?.ToString();
         txtTelefono.Text = dgvClientes.CurrentRow.Cells["colTelefono"].Value?.ToString();
-        cmbCategoria.SelectedItem = dgvClientes.CurrentRow.Cells["colCategoria"].Value?.ToString() == "VIP" ? "VIP" : "Normal";
+
+        var catTexto = dgvClientes.CurrentRow.Cells["colCategoria"].Value?.ToString()?.ToUpperInvariant();
+        cmbCategoria.SelectedItem = catTexto switch
+        {
+            "VIP" => "VIP",
+            "MAYORISTA" => "Mayorista",
+            _ => "Normal"
+        };
     }
 
     private void LimpiarFormulario()
@@ -225,19 +232,35 @@ public partial class FrmClientes : UserControl, IViewRefrescable
 
         try
         {
-            var categoria = (CategoriaCliente)Enum.Parse(typeof(CategoriaCliente), cmbCategoria.Text);
+            var textoCategoria = cmbCategoria.SelectedItem?.ToString() ?? cmbCategoria.Text;
+            if (!Enum.TryParse<CategoriaCliente>(textoCategoria, ignoreCase: true, out var categoria))
+            {
+                MessageBox.Show($"Categoría inválida: '{textoCategoria}'.",
+                    "Validación", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            var identificacion = txtIdentificacion.Text.Trim();
+            var nombre = txtNombre.Text.Trim();
+            var correo = txtCorreo.Text.Trim();
+            var telefono = txtTelefono.Text.Trim();
 
             if (_clienteEditandoId is null)
             {
-                var existente = await _repo.ObtenerPorIdentificacionAsync(txtIdentificacion.Text.Trim());
+                var existente = await _repo.ObtenerPorIdentificacionAsync(identificacion);
                 if (existente is not null)
                 {
                     MessageBox.Show("Ya existe un cliente con esa identificación.",
                         "Duplicado", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
-                var nuevo = new Cliente(txtIdentificacion.Text.Trim(), txtNombre.Text.Trim(),
-                    txtCorreo.Text.Trim(), categoria);
+
+                var nuevo = new Cliente(identificacion, nombre, correo, categoria);
+                if (!string.IsNullOrWhiteSpace(telefono))
+                {
+                    nuevo.ActualizarDatos(nombre, correo, telefono, categoria);
+                }
+
                 await _repo.AgregarAsync(nuevo);
             }
             else
@@ -249,8 +272,8 @@ public partial class FrmClientes : UserControl, IViewRefrescable
                         MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return;
                 }
-                cliente.ActualizarDatos(txtNombre.Text.Trim(), txtCorreo.Text.Trim(),
-                    txtTelefono.Text.Trim(), categoria);
+
+                cliente.ActualizarDatos(nombre, correo, telefono, categoria);
                 await _repo.ActualizarAsync(cliente);
             }
 
@@ -262,7 +285,9 @@ public partial class FrmClientes : UserControl, IViewRefrescable
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Error: {ex.Message}", "Error",
+            var causa = ex;
+            while (causa.InnerException is not null) causa = causa.InnerException;
+            MessageBox.Show($"Error: {causa.Message}", "Error",
                 MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
@@ -280,13 +305,31 @@ public partial class FrmClientes : UserControl, IViewRefrescable
             "Confirmación", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
             return;
 
-        var cliente = await _repo.ObtenerPorIdAsync(_clienteEditandoId.Value);
-        if (cliente is null) return;
+        try
+        {
+            var cliente = await _repo.ObtenerPorIdAsync(_clienteEditandoId.Value);
+            if (cliente is null)
+            {
+                MessageBox.Show("Cliente no encontrado.", "Error",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
 
-        cliente.Desactivar();
-        await _repo.ActualizarAsync(cliente);
-        await CargarClientesAsync();
-        _mediator.NotificarCatalogoActualizado();
+            cliente.Desactivar();
+            await _repo.ActualizarAsync(cliente);
+            MessageBox.Show("Cliente desactivado correctamente.", "Éxito",
+                MessageBoxButtons.OK, MessageBoxIcon.Information);
+            LimpiarFormulario();
+            await CargarClientesAsync();
+            _mediator.NotificarCatalogoActualizado();
+        }
+        catch (Exception ex)
+        {
+            var causa = ex;
+            while (causa.InnerException is not null) causa = causa.InnerException;
+            MessageBox.Show($"Error: {causa.Message}", "Error",
+                MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
     }
 
     // IViewRefrescable
