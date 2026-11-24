@@ -564,7 +564,10 @@ public class FrmCarrito : UserControl, IViewRefrescable
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Error de validación: {ex.Message}", "Rechazo",
+            // Mostrar la causa real (EF Core oculta el detalle en InnerException)
+            var causa = ex;
+            while (causa.InnerException is not null) causa = causa.InnerException;
+            MessageBox.Show($"Error de validación: {causa.Message}", "Rechazo",
                 MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }

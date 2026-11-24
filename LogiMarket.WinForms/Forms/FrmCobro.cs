@@ -3,6 +3,7 @@ using LogiMarket.Application.Ports.Persistence;
 using LogiMarket.Application.Ports.Payments;
 using LogiMarket.Domain.Entities;
 using LogiMarket.WinForms.Mediator;
+using LogiMarket.WinForms.UI;
 using System.Windows.Forms;
 
 namespace LogiMarket.WinForms.Forms;
@@ -45,6 +46,7 @@ public class FrmCobro : UserControl, IViewRefrescable
 
         InicializarComponentes();
         Load += CargarPedidosValidados;
+        VisibleChanged += (_, _) => { if (Visible) CargarPedidosValidados(null, EventArgs.Empty); };
     }
 
     private void InicializarComponentes()
@@ -66,10 +68,11 @@ public class FrmCobro : UserControl, IViewRefrescable
 
         // --- Fila 0: selector de pedido ---
         lbPedido = new Label { Text = "Pedido VALIDADO:", AutoSize = true, Font = new Font("Segoe UI", 10, FontStyle.Bold), Margin = new Padding(0, 10, 5, 0) };
-        cmbPedidos = new ComboBox { Width = 300, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Segoe UI", 10) };
+        cmbPedidos = new ComboBox { Width = 430, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Segoe UI", 10) };
         btnCargar = new Button { Text = "Cargar", Width = 80, Height = 30, BackColor = Color.FromArgb(30, 120, 200), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
         btnCargar.FlatAppearance.BorderSize = 0;
         btnCargar.Click += async (_, _) => await CargarPedidoAsync();
+        cmbPedidos.SelectionChangeCommitted += async (_, _) => await CargarPedidoAsync();
 
         var pnlSelector = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight, Padding = new Padding(0, 5, 0, 5) };
         pnlSelector.Controls.AddRange(new Control[] { lbPedido, cmbPedidos, btnCargar });
@@ -142,14 +145,15 @@ public class FrmCobro : UserControl, IViewRefrescable
     {
         var pedidos = await _repo.ListarAsync();
         var validados = pedidos.Where(p => p.EstadoActual == "VALIDADO").ToList();
-        cmbPedidos.DataSource = validados;
-        cmbPedidos.DisplayMember = "Id";
+        cmbPedidos.DataSource = PedidoItem.De(validados);
+        cmbPedidos.DisplayMember = "Texto";
         cmbPedidos.ValueMember = "Id";
+        if (cmbPedidos.SelectedValue is Guid) await CargarPedidoAsync();
     }
 
     private async Task CargarPedidoAsync()
     {
-        if (cmbPedidos.SelectedItem is not Guid id) return;
+        if (cmbPedidos.SelectedValue is not Guid id) return;
         var pedido = await _repo.ObtenerPorIdAsync(id);
         if (pedido is null) return;
 
@@ -173,7 +177,7 @@ public class FrmCobro : UserControl, IViewRefrescable
 
     private async Task CobrarAsync()
     {
-        if (cmbPedidos.SelectedItem is not Guid id)
+        if (cmbPedidos.SelectedValue is not Guid id)
         {
             MessageBox.Show("Seleccione un pedido.", "Aviso", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
@@ -218,7 +222,7 @@ public class FrmCobro : UserControl, IViewRefrescable
     }
 
     // IViewRefrescable
-    public void OnPedidoConfirmado(Guid pedidoId) { }
+    public void OnPedidoConfirmado(Guid pedidoId) => CargarPedidosValidados(null, EventArgs.Empty);
     public void OnStockModificado() { }
     public void OnCatalogoActualizado() { }
     public void OnDespachoRegistrado(Guid pedidoId) { }

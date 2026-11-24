@@ -36,6 +36,7 @@ public class FrmDevoluciones : UserControl, IViewRefrescable
         _mediator.Registrar(this);
         InicializarComponentes();
         Load += async (_, _) => await CargarPedidosAsync();
+        VisibleChanged += async (_, _) => { if (Visible) await CargarPedidosAsync(); };
     }
 
     private void InicializarComponentes()
@@ -63,10 +64,11 @@ public class FrmDevoluciones : UserControl, IViewRefrescable
         };
         var lbPedido = UIHelper.CrearLabel("Pedido ENTREGADO:", negrita: true);
         lbPedido.Margin = new Padding(0, 8, 5, 0);
-        cmbPedidosEntregados = UIHelper.CrearComboBox(300);
+        cmbPedidosEntregados = UIHelper.CrearComboBox(430);
         cmbPedidosEntregados.Margin = new Padding(0, 5, 10, 0);
         btnCargar = UIHelper.CrearBotonPrimario("Cargar", 90);
         btnCargar.Click += async (_, _) => await CargarPedidoAsync();
+        cmbPedidosEntregados.SelectionChangeCommitted += async (_, _) => await CargarPedidoAsync();
 
         pnlSelector.Controls.AddRange(new Control[] { lbPedido, cmbPedidosEntregados, btnCargar });
         pnlRaiz.Controls.Add(pnlSelector, 0, 0);
@@ -145,14 +147,16 @@ public class FrmDevoluciones : UserControl, IViewRefrescable
     {
         var pedidos = await _repo.ListarAsync();
         var entregados = pedidos.Where(p => p.EstadoActual == "ENTREGADO" && p.Devolucion is null).ToList();
-        cmbPedidosEntregados.DataSource = entregados;
-        cmbPedidosEntregados.DisplayMember = "Id";
+        cmbPedidosEntregados.DataSource = PedidoItem.De(entregados);
+        cmbPedidosEntregados.DisplayMember = "Texto";
         cmbPedidosEntregados.ValueMember = "Id";
+        if (cmbPedidosEntregados.SelectedValue is Guid) await CargarPedidoAsync();
+        else _pedidoSeleccionado = null;
     }
 
     private async Task CargarPedidoAsync()
     {
-        if (cmbPedidosEntregados.SelectedItem is not Guid id) return;
+        if (cmbPedidosEntregados.SelectedValue is not Guid id) return;
         _pedidoSeleccionado = await _repo.ObtenerPorIdAsync(id);
         if (_pedidoSeleccionado is null) return;
 

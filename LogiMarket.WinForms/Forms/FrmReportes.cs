@@ -32,6 +32,7 @@ public class FrmReportes : UserControl, IViewRefrescable
         _mediator.Registrar(this);
         InicializarComponentes();
         Load += async (_, _) => await CargarPedidosAsync();
+        VisibleChanged += async (_, _) => { if (Visible) await CargarPedidosAsync(); };
     }
 
     private void InicializarComponentes()
@@ -58,10 +59,11 @@ public class FrmReportes : UserControl, IViewRefrescable
         };
         var lbPedido = UIHelper.CrearLabel("Pedido:", negrita: true);
         lbPedido.Margin = new Padding(0, 8, 5, 0);
-        cmbPedidos = UIHelper.CrearComboBox(300);
+        cmbPedidos = UIHelper.CrearComboBox(430);
         cmbPedidos.Margin = new Padding(0, 5, 10, 0);
         btnCargar = UIHelper.CrearBotonPrimario("Cargar", 90);
         btnCargar.Click += async (_, _) => await CargarPedidoAsync();
+        cmbPedidos.SelectionChangeCommitted += async (_, _) => await CargarPedidoAsync();
 
         pnlSelector.Controls.AddRange(new Control[] { lbPedido, cmbPedidos, btnCargar });
         pnlRaiz.Controls.Add(pnlSelector, 0, 0);
@@ -112,14 +114,16 @@ public class FrmReportes : UserControl, IViewRefrescable
     private async Task CargarPedidosAsync()
     {
         var pedidos = await _repo.ListarAsync();
-        cmbPedidos.DataSource = pedidos;
-        cmbPedidos.DisplayMember = "Id";
+        cmbPedidos.DataSource = PedidoItem.De(pedidos);
+        cmbPedidos.DisplayMember = "Texto";
         cmbPedidos.ValueMember = "Id";
+        if (cmbPedidos.SelectedValue is Guid) await CargarPedidoAsync();
+        else _pedidoSeleccionado = null;
     }
 
     private async Task CargarPedidoAsync()
     {
-        if (cmbPedidos.SelectedItem is not Guid id) return;
+        if (cmbPedidos.SelectedValue is not Guid id) return;
         _pedidoSeleccionado = await _repo.ObtenerPorIdAsync(id);
     }
 
@@ -156,7 +160,7 @@ public class FrmReportes : UserControl, IViewRefrescable
     }
 
     // IViewRefrescable
-    public void OnPedidoConfirmado(Guid pedidoId) { }
+    public void OnPedidoConfirmado(Guid pedidoId) => CargarPedidosAsync().ConfigureAwait(false);
     public void OnStockModificado() { }
     public void OnCatalogoActualizado() { }
     public void OnDespachoRegistrado(Guid pedidoId) { }

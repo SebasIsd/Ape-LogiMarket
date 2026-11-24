@@ -1,5 +1,6 @@
 ﻿using LogiMarket.Application.Ports.Persistence;
 using LogiMarket.Domain.Entities;
+using LogiMarket.Infrastructure.Outbox;
 using LogiMarket.WinForms.Mediator;
 using LogiMarket.WinForms.UI;
 using System.Windows.Forms;
@@ -17,9 +18,11 @@ public class FrmAuditoria : UserControl, IViewRefrescable
     private readonly IRepositorioOutbox _outbox;
     private readonly IRepositorioAuditoria _auditoria;
     private readonly IFormularioMediator _mediator;
+    private readonly OutboxProcessor _processor;
 
-    public FrmAuditoria(IRepositorioOutbox outbox, IRepositorioAuditoria auditoria, IFormularioMediator mediator)
+    public FrmAuditoria(IRepositorioOutbox outbox, IRepositorioAuditoria auditoria, IFormularioMediator mediator, OutboxProcessor processor)
     {
+        _processor = processor;
         _outbox = outbox;
         _auditoria = auditoria;
         _mediator = mediator;
@@ -53,10 +56,17 @@ public class FrmAuditoria : UserControl, IViewRefrescable
         btnProcesar = UIHelper.CrearBotonSecundario("⚙️ Procesar Outbox pendiente", 200);
         btnProcesar.Click += async (_, _) => await ProcesarOutboxAsync();
         pnlBoton.Controls.Add(btnProcesar);
+        pnlBoton.Controls.Add(new Label
+        {
+            AutoSize = true,
+            Margin = new Padding(15, 8, 0, 0),
+            Text = "Outbox: eventos de negocio (p. ej. PedidoPagado) pendientes de notificar. " +
+                   "Auditoría: bitácora de quién hizo qué y cuándo."
+        });
         pnlRaiz.Controls.Add(pnlBoton, 0, 0);
 
         // --- Fila 1: Outbox ---
-        var grpOutbox = UIHelper.CrearGroupBox("Eventos Outbox (Observer)");
+        var grpOutbox = UIHelper.CrearGroupBox("Eventos Outbox (Observer) — últimos 100");
         grpOutbox.Dock = DockStyle.Fill;
         dgvOutbox = UIHelper.CrearDataGridView();
         dgvOutbox.Dock = DockStyle.Fill;
@@ -88,7 +98,7 @@ public class FrmAuditoria : UserControl, IViewRefrescable
     {
         try
         {
-            var eventos = await _outbox.ObtenerPendientesAsync(100);
+            var eventos = await _outbox.ListarRecientesAsync(100);
             dgvOutbox.DataSource = null;
             dgvOutbox.Rows.Clear();
             foreach (var e in eventos)
@@ -116,14 +126,20 @@ public class FrmAuditoria : UserControl, IViewRefrescable
     {
         try
         {
-            var pendientes = await _outbox.ObtenerPendientesAsync(50);
-            int procesados = 0;
-            foreach (var ev in pendientes)
+            var antes = (await _outbox.ObtenerPendientesAsync(100)).Count;
+            if (antes == 0)
             {
-                await _outbox.MarcarProcesadoAsync(ev.Id);
-                procesados++;
+                MessageBox.Show("No hay eventos pendientes. Los eventos se generan al cobrar un pedido.",
+                    "Outbox", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
             }
-            MessageBox.Show($"Procesados {procesados} eventos.", "Outbox", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+            // OutboxProcessor: envía cada evento por el notificador y lo marca como procesado
+            await _processor.ProcesarPendientesAsync();
+
+            var despues = (await _outbox.ObtenerPendientesAsync(100)).Count;
+            MessageBox.Show($"Procesados {antes - despues} de {antes} eventos.", "Outbox",
+                MessageBoxButtons.OK, MessageBoxIcon.Information);
             await CargarDatosAsync();
         }
         catch (Exception ex)

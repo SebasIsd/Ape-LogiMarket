@@ -1,4 +1,5 @@
-﻿using LogiMarket.Application.Ports.Persistence;
+﻿using LogiMarket.Application.Ports.Payments;
+using LogiMarket.Application.Ports.Persistence;
 using LogiMarket.Application.Shipping;
 using LogiMarket.Domain.Entities;
 using LogiMarket.Domain.Enums;
@@ -31,16 +32,22 @@ public class FrmDespacho : UserControl, IViewRefrescable
     private readonly IRepositorioPedido _repo;
     private readonly IEnvioAbstractFactory _envioFactory;
     private readonly IFormularioMediator _mediator;
+    private readonly IRepositorioAuditoria _auditoria;
+    private readonly ISesionUsuario _sesion;
     private Pedido? _pedidoSeleccionado;
 
-    public FrmDespacho(IRepositorioPedido repo, IEnvioAbstractFactory envioFactory, IFormularioMediator mediator)
+    public FrmDespacho(IRepositorioPedido repo, IEnvioAbstractFactory envioFactory, IFormularioMediator mediator,
+        IRepositorioAuditoria auditoria, ISesionUsuario sesion)
     {
+        _auditoria = auditoria;
+        _sesion = sesion;
         _repo = repo;
         _envioFactory = envioFactory;
         _mediator = mediator;
         _mediator.Registrar(this);
         InicializarComponentes();
         Load += async (_, _) => await CargarPedidosAsync();
+        VisibleChanged += async (_, _) => { if (Visible) await CargarPedidosAsync(); };
     }
 
     private void InicializarComponentes()
@@ -69,10 +76,11 @@ public class FrmDespacho : UserControl, IViewRefrescable
         };
         var lbPedido = UIHelper.CrearLabel("Pedido PAGADO:", negrita: true);
         lbPedido.Margin = new Padding(0, 8, 5, 0);
-        cmbPedidosPagados = UIHelper.CrearComboBox(300);
+        cmbPedidosPagados = UIHelper.CrearComboBox(430);
         cmbPedidosPagados.Margin = new Padding(0, 5, 10, 0);
         btnCargar = UIHelper.CrearBotonPrimario("Cargar", 90);
         btnCargar.Click += async (_, _) => await CargarPedidoAsync();
+        cmbPedidosPagados.SelectionChangeCommitted += async (_, _) => await CargarPedidoAsync();
 
         pnlSelector.Controls.AddRange(new Control[] { lbPedido, cmbPedidosPagados, btnCargar });
         pnlRaiz.Controls.Add(pnlSelector, 0, 0);
@@ -171,15 +179,17 @@ public class FrmDespacho : UserControl, IViewRefrescable
     private async Task CargarPedidosAsync()
     {
         var pedidos = await _repo.ListarAsync();
-        var pagados = pedidos.Where(p => p.EstadoActual == "PAGADO").ToList();
-        cmbPedidosPagados.DataSource = pagados;
-        cmbPedidosPagados.DisplayMember = "Id";
+        var pagados = pedidos.Where(p => p.EstadoActual == "PAGADO" || p.EstadoActual == "DESPACHADO").ToList();
+        cmbPedidosPagados.DataSource = PedidoItem.De(pagados);
+        cmbPedidosPagados.DisplayMember = "Texto";
         cmbPedidosPagados.ValueMember = "Id";
+        if (cmbPedidosPagados.SelectedValue is Guid) await CargarPedidoAsync();
+        else _pedidoSeleccionado = null;
     }
 
     private async Task CargarPedidoAsync()
     {
-        if (cmbPedidosPagados.SelectedItem is not Guid id) return;
+        if (cmbPedidosPagados.SelectedValue is not Guid id) return;
         _pedidoSeleccionado = await _repo.ObtenerPorIdAsync(id);
         if (_pedidoSeleccionado is null) return;
 
@@ -213,6 +223,8 @@ public class FrmDespacho : UserControl, IViewRefrescable
             var despacho = new Despacho(_pedidoSeleccionado.Id, familia.GenerarGuia(), familia.Nombre, familia.PlazoDias);
             _pedidoSeleccionado.Despachar(despacho);
             await _repo.ActualizarAsync(_pedidoSeleccionado);
+            await _auditoria.AgregarAsync(new Auditoria(_sesion.Username, "DESPACHO",
+                $"Pedido {_pedidoSeleccionado.Id.ToString("N")[..8].ToUpperInvariant()} despachado. Guía {despacho.Guia}"));
             MessageBox.Show("Pedido despachado correctamente.", "Éxito", MessageBoxButtons.OK, MessageBoxIcon.Information);
             _mediator.NotificarDespachoRegistrado(_pedidoSeleccionado.Id);
             await CargarPedidosAsync();
@@ -235,6 +247,8 @@ public class FrmDespacho : UserControl, IViewRefrescable
         {
             _pedidoSeleccionado.Entregar();
             await _repo.ActualizarAsync(_pedidoSeleccionado);
+            await _auditoria.AgregarAsync(new Auditoria(_sesion.Username, "ENTREGA",
+                $"Pedido {_pedidoSeleccionado.Id.ToString("N")[..8].ToUpperInvariant()} entregado"));
             MessageBox.Show("Pedido entregado correctamente.", "Éxito", MessageBoxButtons.OK, MessageBoxIcon.Information);
             _mediator.NotificarDespachoRegistrado(_pedidoSeleccionado.Id);
             await CargarPedidosAsync();
@@ -246,7 +260,7 @@ public class FrmDespacho : UserControl, IViewRefrescable
     }
 
     // IViewRefrescable
-    public void OnPedidoConfirmado(Guid pedidoId) { }
+    public void OnPedidoConfirmado(Guid pedidoId) => CargarPedidosAsync().ConfigureAwait(false);
     public void OnStockModificado() { }
     public void OnCatalogoActualizado() { }
     public void OnDespachoRegistrado(Guid pedidoId) => CargarPedidosAsync().ConfigureAwait(false);
