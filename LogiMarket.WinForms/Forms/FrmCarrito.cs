@@ -73,143 +73,290 @@ public class FrmCarrito : UserControl, IViewRefrescable
     {
         BackColor = UIHelper.ColorGrisClaro;
 
+        // --- Layout principal: barra superior (auto) + grid (flexible) + inferior (auto) ---
         pnlRaiz = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
             RowCount = 3,
-            Padding = new Padding(15)
+            Padding = new Padding(15),
+            BackColor = UIHelper.ColorGrisClaro
         };
-        pnlRaiz.RowStyles.Add(new RowStyle(SizeType.Absolute, 60));
-        pnlRaiz.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        pnlRaiz.RowStyles.Add(new RowStyle(SizeType.Absolute, 220));
+        pnlRaiz.RowStyles.Add(new RowStyle(SizeType.AutoSize));      // 0: Barra superior
+        pnlRaiz.RowStyles.Add(new RowStyle(SizeType.Percent, 100));  // 1: Grid
+        pnlRaiz.RowStyles.Add(new RowStyle(SizeType.AutoSize));      // 2: Panel inferior
 
-        // --- Barra superior ---
+        // ============================================
+        // BARRA SUPERIOR: Cliente | Producto | Cantidad | Botones
+        // ============================================
         var pnlSuperior = new FlowLayoutPanel
         {
             Dock = DockStyle.Fill,
             FlowDirection = FlowDirection.LeftToRight,
-            WrapContents = false,
-            Padding = new Padding(0, 10, 0, 5)
+            WrapContents = true,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Padding = new Padding(0, 2, 0, 10),
+            Margin = new Padding(0)
         };
 
         lbCliente = UIHelper.CrearLabel("Cliente:", negrita: true);
-        lbCliente.Margin = new Padding(0, 8, 5, 0);
-        cmbClientes = UIHelper.CrearComboBox(200);
+        lbCliente.Margin = new Padding(0, 8, 5, 4);
+        cmbClientes = UIHelper.CrearComboBox(160);
+        cmbClientes.Margin = new Padding(0, 5, 12, 4);
 
-        lbProducto = UIHelper.CrearLabel("  Producto/Kit:", negrita: true);
-        lbProducto.Margin = new Padding(10, 8, 5, 0);
-        cmbProductos = UIHelper.CrearComboBox(200);
+        lbProducto = UIHelper.CrearLabel("Producto/Kit:", negrita: true);
+        lbProducto.Margin = new Padding(0, 8, 5, 4);
+        cmbProductos = UIHelper.CrearComboBox(175);
+        cmbProductos.Margin = new Padding(0, 5, 12, 4);
 
-        lbCantidad = UIHelper.CrearLabel("  Cantidad:", negrita: true);
-        lbCantidad.Margin = new Padding(10, 8, 5, 0);
-        nudCantidad = new NumericUpDown { Width = 70, Minimum = 1, Maximum = 999, Value = 1, Font = UIHelper.FuenteNormal };
+        lbCantidad = UIHelper.CrearLabel("Cantidad:", negrita: true);
+        lbCantidad.Margin = new Padding(0, 8, 5, 4);
+        nudCantidad = new NumericUpDown
+        {
+            Width = 65,
+            Minimum = 1,
+            Maximum = 999,
+            Value = 1,
+            Font = UIHelper.FuenteNormal,
+            Margin = new Padding(0, 5, 12, 4)
+        };
 
-        btnAgregar = UIHelper.CrearBotonSecundario("Agregar", 90);
+        btnAgregar = UIHelper.CrearBotonSecundario("Agregar", 85);
+        btnAgregar.Margin = new Padding(4, 4, 4, 4);
         btnAgregar.Click += async (_, _) => await AgregarLineaAsync();
 
-        btnQuitar = UIHelper.CrearBotonPeligro("Quitar", 80);
+        btnQuitar = UIHelper.CrearBotonPeligro("Quitar", 78);
+        btnQuitar.Margin = new Padding(4, 4, 4, 4);
         btnQuitar.Click += QuitarLinea;
 
-        btnDeshacer = UIHelper.CrearBotonGris("↶ Deshacer", 100);
+        btnDeshacer = UIHelper.CrearBotonGris("↶ Deshacer", 98);
+        btnDeshacer.Margin = new Padding(4, 4, 4, 4);
         btnDeshacer.Click += (_, _) => Deshacer();
 
-        btnRehacer = UIHelper.CrearBotonGris("↷ Rehacer", 100);
+        btnRehacer = UIHelper.CrearBotonGris("↷ Rehacer", 98);
+        btnRehacer.Margin = new Padding(4, 4, 4, 4);
         btnRehacer.Click += (_, _) => Rehacer();
 
-        btnClonar = UIHelper.CrearBoton("⎘ Clonar", UIHelper.ColorInfo, ancho: 90);
+        btnClonar = UIHelper.CrearBoton("⎘ Clonar", UIHelper.ColorInfo, ancho: 88);
+        btnClonar.Margin = new Padding(4, 4, 4, 4);
         btnClonar.Click += (_, _) => ClonarBorrador();
 
-        btnLimpiar = UIHelper.CrearBotonGris("✕ Limpiar", 90);
-        btnLimpiar.Click += (_, _) => { _pedidoActual = null; _pilaDeshacer.Clear(); _pilaRehacer.Clear(); RefrescarGrid(); };
+        btnLimpiar = UIHelper.CrearBotonGris("✕ Limpiar", 88);
+        btnLimpiar.Margin = new Padding(4, 4, 4, 4);
+        btnLimpiar.Click += (_, _) =>
+        {
+            _pedidoActual = null;
+            _pilaDeshacer.Clear();
+            _pilaRehacer.Clear();
+            RefrescarGrid();
+            ResetearResumen();
+        };
 
-        pnlSuperior.Controls.AddRange(new Control[] { lbCliente, cmbClientes, lbProducto, cmbProductos, lbCantidad, nudCantidad, btnAgregar, btnQuitar, btnDeshacer, btnRehacer, btnClonar, btnLimpiar });
+        pnlSuperior.Controls.AddRange(new Control[]
+        {
+            lbCliente, cmbClientes,
+            lbProducto, cmbProductos,
+            lbCantidad, nudCantidad,
+            btnAgregar, btnQuitar,
+            btnDeshacer, btnRehacer,
+            btnClonar, btnLimpiar
+        });
         pnlRaiz.Controls.Add(pnlSuperior, 0, 0);
 
-        // --- Grid ---
+        // ============================================
+        // GRID DEL CARRITO
+        // ============================================
         dgvCarrito = UIHelper.CrearDataGridView();
         dgvCarrito.Dock = DockStyle.Fill;
-        dgvCarrito.Columns.Add("colSku", "SKU");
-        dgvCarrito.Columns.Add("colNombre", "Nombre");
-        dgvCarrito.Columns.Add("colTipo", "Tipo");
-        dgvCarrito.Columns.Add("colCantidad", "Cant.");
-        dgvCarrito.Columns.Add("colPrecioUnitario", "Precio Unit.");
-        dgvCarrito.Columns.Add("colSubtotal", "Subtotal");
+        dgvCarrito.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+        dgvCarrito.Margin = new Padding(0, 0, 0, 12);
+
+        var colSku = dgvCarrito.Columns.Add("colSku", "SKU");
+        var colNombre = dgvCarrito.Columns.Add("colNombre", "Nombre");
+        var colTipo = dgvCarrito.Columns.Add("colTipo", "Tipo");
+        var colCantidad = dgvCarrito.Columns.Add("colCantidad", "Cant.");
+        var colPrecio = dgvCarrito.Columns.Add("colPrecioUnitario", "Precio Unit.");
+        var colSubtotal = dgvCarrito.Columns.Add("colSubtotal", "Subtotal");
+
+        dgvCarrito.Columns[colSku].FillWeight = 14;
+        dgvCarrito.Columns[colNombre].FillWeight = 34;
+        dgvCarrito.Columns[colTipo].FillWeight = 13;
+        dgvCarrito.Columns[colCantidad].FillWeight = 10;
+        dgvCarrito.Columns[colPrecio].FillWeight = 14;
+        dgvCarrito.Columns[colSubtotal].FillWeight = 15;
+
         dgvCarrito.Columns["colPrecioUnitario"]!.DefaultCellStyle.Format = "0.00";
         dgvCarrito.Columns["colSubtotal"]!.DefaultCellStyle.Format = "0.00";
         pnlRaiz.Controls.Add(dgvCarrito, 0, 1);
 
-        // --- Panel inferior: Totales + envío + validar ---
+        // ============================================
+        // PANEL INFERIOR: Resumen (izquierda) + Botón Validar (derecha)
+        // ============================================
         var pnlInferior = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
             ColumnCount = 2,
             RowCount = 1,
-            Padding = new Padding(0, 10, 0, 0)
+            Margin = new Padding(0),
+            Padding = new Padding(0)
         };
-        pnlInferior.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 60));
-        pnlInferior.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40));
+        pnlInferior.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 72));
+        pnlInferior.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 28));
 
-        grpTotales = UIHelper.CrearGroupBox("Resumen");
+        // --- Grupo Resumen ---
+        // --- Grupo Resumen ---
+        grpTotales = UIHelper.CrearGroupBox("Resumen del pedido");
         grpTotales.Dock = DockStyle.Fill;
+        grpTotales.AutoSize = true;
+        grpTotales.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        grpTotales.Margin = new Padding(0, 0, 10, 0);
 
         var pnlTotales = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
-            ColumnCount = 2,
-            RowCount = 6,
-            Padding = new Padding(10)
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            ColumnCount = 4,
+            RowCount = 4,
+            Padding = new Padding(14, 22, 14, 14)
         };
+        pnlTotales.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100));
         pnlTotales.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        pnlTotales.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100));
         pnlTotales.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
 
-        lbSubtotal = new Label { Text = "Subtotal: $ 0.00", Dock = DockStyle.Fill, Font = UIHelper.FuenteNormal };
-        lbDescuento = new Label { Text = "Descuento: $ 0.00", Dock = DockStyle.Fill, Font = UIHelper.FuenteNormal };
-        lbEstrategia = new Label { Text = "Estrategia: NORMAL", Dock = DockStyle.Fill, Font = UIHelper.FuenteNormal };
-        lbTarifa = new Label { Text = "Tarifa: $ 0.00", Dock = DockStyle.Fill, Font = UIHelper.FuenteNormal };
-        lbTotal = new Label { Text = "TOTAL: $ 0.00", Dock = DockStyle.Fill, Font = UIHelper.FuenteGrande, ForeColor = UIHelper.ColorPrimario };
+        pnlTotales.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
+        pnlTotales.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
+        pnlTotales.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
+        pnlTotales.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
+
+        // Fila 0: Subtotal | Estrategia
+        var lblSub = UIHelper.CrearLabel("Subtotal:", negrita: true);
+        lblSub.AutoSize = true;
+        lblSub.Anchor = AnchorStyles.Left | AnchorStyles.None;
+        pnlTotales.Controls.Add(lblSub, 0, 0);
+
+        lbSubtotal = new Label
+        {
+            Text = "$ 0.00",
+            AutoSize = true,
+            Anchor = AnchorStyles.Left | AnchorStyles.None,
+            Font = UIHelper.FuenteNormal
+        };
+        pnlTotales.Controls.Add(lbSubtotal, 1, 0);
+
+        var lblEst = UIHelper.CrearLabel("Estrategia:", negrita: true);
+        lblEst.AutoSize = true;
+        lblEst.Anchor = AnchorStyles.Left | AnchorStyles.None;
+        pnlTotales.Controls.Add(lblEst, 2, 0);
+
+        lbEstrategia = new Label
+        {
+            Text = "NORMAL",
+            AutoSize = true,
+            Anchor = AnchorStyles.Left | AnchorStyles.None,
+            Font = UIHelper.FuenteNormal
+        };
+        pnlTotales.Controls.Add(lbEstrategia, 3, 0);
+
+        // Fila 1: Descuento | Envío
+        var lblDesc = UIHelper.CrearLabel("Descuento:", negrita: true);
+        lblDesc.AutoSize = true;
+        lblDesc.Anchor = AnchorStyles.Left | AnchorStyles.None;
+        pnlTotales.Controls.Add(lblDesc, 0, 1);
+
+        lbDescuento = new Label
+        {
+            Text = "$ 0.00",
+            AutoSize = true,
+            Anchor = AnchorStyles.Left | AnchorStyles.None,
+            Font = UIHelper.FuenteNormal
+        };
+        pnlTotales.Controls.Add(lbDescuento, 1, 1);
 
         lbEnvio = UIHelper.CrearLabel("Envío:", negrita: true);
-        cmbEnvio = UIHelper.CrearComboBox();
-        cmbEnvio.Dock = DockStyle.Fill;
+        lbEnvio.AutoSize = true;
+        lbEnvio.Anchor = AnchorStyles.Left | AnchorStyles.None;
+        pnlTotales.Controls.Add(lbEnvio, 2, 1);
+
+        cmbEnvio = UIHelper.CrearComboBox(130);
+        cmbEnvio.Anchor = AnchorStyles.Left | AnchorStyles.None;
         cmbEnvio.Items.AddRange(new object[] { "ESTÁNDAR", "EXPRÉS" });
         cmbEnvio.SelectedIndex = 0;
         cmbEnvio.SelectedIndexChanged += (_, _) => Recalcular();
+        pnlTotales.Controls.Add(cmbEnvio, 3, 1);
 
-        pnlTotales.Controls.Add(UIHelper.CrearLabel("Subtotal:"), 0, 0);
-        pnlTotales.Controls.Add(lbSubtotal, 1, 0);
-        pnlTotales.Controls.Add(UIHelper.CrearLabel("Descuento:"), 0, 1);
-        pnlTotales.Controls.Add(lbDescuento, 1, 1);
-        pnlTotales.Controls.Add(UIHelper.CrearLabel("Estrategia:"), 0, 2);
-        pnlTotales.Controls.Add(lbEstrategia, 1, 2);
-        pnlTotales.Controls.Add(UIHelper.CrearLabel("Tarifa:"), 0, 3);
-        pnlTotales.Controls.Add(lbTarifa, 1, 3);
-        pnlTotales.Controls.Add(lbEnvio, 0, 4);
-        pnlTotales.Controls.Add(cmbEnvio, 1, 4);
-        pnlTotales.Controls.Add(UIHelper.CrearLabel("TOTAL:", negrita: true), 0, 5);
-        pnlTotales.Controls.Add(lbTotal, 1, 5);
+        // Fila 2: Tarifa
+        var lblTar = UIHelper.CrearLabel("Tarifa:", negrita: true);
+        lblTar.AutoSize = true;
+        lblTar.Anchor = AnchorStyles.Left | AnchorStyles.None;
+        pnlTotales.Controls.Add(lblTar, 0, 2);
+
+        lbTarifa = new Label
+        {
+            Text = "$ 0.00",
+            AutoSize = true,
+            Anchor = AnchorStyles.Left | AnchorStyles.None,
+            Font = UIHelper.FuenteNormal
+        };
+        pnlTotales.Controls.Add(lbTarifa, 1, 2);
+
+        // Fila 3: TOTAL
+        var lblTot = UIHelper.CrearLabel("TOTAL:", negrita: true);
+        lblTot.AutoSize = true;
+        lblTot.Anchor = AnchorStyles.Left | AnchorStyles.None;
+        pnlTotales.Controls.Add(lblTot, 0, 3);
+
+        lbTotal = new Label
+        {
+            Text = "$ 0.00",
+            AutoSize = true,
+            Anchor = AnchorStyles.Left | AnchorStyles.None,
+            Font = new Font(UIHelper.FuenteGrande.FontFamily, 14, FontStyle.Bold),
+            ForeColor = UIHelper.ColorPrimario
+        };
+        pnlTotales.SetColumnSpan(lbTotal, 3);
+        pnlTotales.Controls.Add(lbTotal, 1, 3);
 
         grpTotales.Controls.Add(pnlTotales);
         pnlInferior.Controls.Add(grpTotales, 0, 0);
 
-        // --- Botones de acción ---
-        var pnlAcciones = new FlowLayoutPanel
+
+        // --- Botón Validar (centrado en su celda) ---
+        var pnlBotonValidar = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
-            FlowDirection = FlowDirection.BottomUp,
-            Padding = new Padding(10)
+            ColumnCount = 1,
+            RowCount = 1,
+            Margin = new Padding(0),
+            Padding = new Padding(8)
         };
+        pnlBotonValidar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        pnlBotonValidar.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
-        btnValidar = UIHelper.CrearBotonPrimario("✓ Validar Pedido", 200);
-        btnValidar.Height = 45;
+        btnValidar = UIHelper.CrearBotonPrimario("✓ Validar Pedido", 210);
+        btnValidar.Height = 52;
         btnValidar.Font = UIHelper.FuenteGrande;
+        btnValidar.Anchor = AnchorStyles.None;
         btnValidar.Click += async (_, _) => await ValidarPedidoAsync();
 
-        pnlAcciones.Controls.Add(btnValidar);
-        pnlInferior.Controls.Add(pnlAcciones, 1, 0);
+        pnlBotonValidar.Controls.Add(btnValidar, 0, 0);
+        pnlInferior.Controls.Add(pnlBotonValidar, 1, 0);
 
         pnlRaiz.Controls.Add(pnlInferior, 0, 2);
         Controls.Add(pnlRaiz);
+    }
+
+    private void ResetearResumen()
+    {
+        lbSubtotal.Text = "$ 0.00";
+        lbDescuento.Text = "$ 0.00";
+        lbEstrategia.Text = "NORMAL";
+        lbTarifa.Text = "$ 0.00";
+        lbTotal.Text = "$ 0.00";
     }
 
     private async void CargarCombos(object? sender, EventArgs e)
@@ -253,7 +400,6 @@ public class FrmCarrito : UserControl, IViewRefrescable
                 return;
             }
 
-            // Builder: construcción controlada
             var builder = new PedidoBuilder()
                 .ConCliente(cliente)
                 .ConEnvio(cmbEnvio.SelectedIndex == 0 ? TipoEnvio.Estandar : TipoEnvio.Expres)
@@ -285,7 +431,11 @@ public class FrmCarrito : UserControl, IViewRefrescable
 
     private void Recalcular()
     {
-        if (_pedidoActual is null) return;
+        if (_pedidoActual is null)
+        {
+            ResetearResumen();
+            return;
+        }
 
         var unidades = _pedidoActual.Detalles.Sum(d => d.Cantidad);
         var cliente = (Cliente?)cmbClientes.SelectedItem;
@@ -297,11 +447,11 @@ public class FrmCarrito : UserControl, IViewRefrescable
         _pedidoActual.AplicarDescuento(descuento, estrategia.Nombre);
         _pedidoActual.AplicarTarifa(familia.CalcularTarifa());
 
-        lbSubtotal.Text = $"Subtotal: $ {_pedidoActual.Subtotal.Amount:0.00}";
-        lbDescuento.Text = $"Descuento: $ {_pedidoActual.Descuento.Amount:0.00}";
-        lbEstrategia.Text = $"Estrategia: {_pedidoActual.EstrategiaDescuentoAplicada}";
-        lbTarifa.Text = $"Tarifa: $ {_pedidoActual.TarifaEnvio.Amount:0.00}";
-        lbTotal.Text = $"TOTAL: $ {_pedidoActual.Total.Amount:0.00}";
+        lbSubtotal.Text = $"$ {_pedidoActual.Subtotal.Amount:0.00}";
+        lbDescuento.Text = $"$ {_pedidoActual.Descuento.Amount:0.00}";
+        lbEstrategia.Text = _pedidoActual.EstrategiaDescuentoAplicada;
+        lbTarifa.Text = $"$ {_pedidoActual.TarifaEnvio.Amount:0.00}";
+        lbTotal.Text = $"$ {_pedidoActual.Total.Amount:0.00}";
     }
 
     private void RefrescarGrid()
