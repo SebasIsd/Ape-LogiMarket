@@ -29,6 +29,17 @@ public class AppDbContext : DbContext, IUnitOfWork
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
         base.OnModelCreating(modelBuilder);
+
+        // Todas las claves Guid se asignan en el constructor del dominio (Guid.NewGuid()).
+        // Con ValueGeneratedOnAdd (convención) EF trata una entidad nueva con clave ya asignada
+        // como "Modified" al descubrirla por navegación (Pedido.Pago, etc.) y emite un UPDATE de 0 filas
+        // => DbUpdateConcurrencyException. Con ValueGeneratedNever pasa a "Added" y hace INSERT.
+        foreach (var entidad in modelBuilder.Model.GetEntityTypes())
+        {
+            var clave = entidad.FindPrimaryKey();
+            if (clave is { Properties.Count: 1 } && clave.Properties[0].ClrType == typeof(Guid))
+                clave.Properties[0].ValueGenerated = Microsoft.EntityFrameworkCore.Metadata.ValueGenerated.Never;
+        }
     }
 
     // IUnitOfWork

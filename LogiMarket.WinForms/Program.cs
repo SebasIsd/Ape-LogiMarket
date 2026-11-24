@@ -9,6 +9,7 @@ using LogiMarket.Application.Ports.Notifications;
 using LogiMarket.Application.Ports.Payments;
 using LogiMarket.Application.Ports.Persistence;
 using LogiMarket.Application.Shipping;
+using LogiMarket.Application.UseCases.Devoluciones;
 using LogiMarket.Application.Validation;
 using LogiMarket.Infrastructure.Catalog;
 using LogiMarket.Infrastructure.Documents;
@@ -195,6 +196,7 @@ internal static class Program
 
         // --- Facade ---
         services.AddScoped<ConfirmacionPedidoFacade>();
+        services.AddScoped<DevolucionService>();
 
         // --- Mediator ---
         services.AddScoped<IFormularioMediator, FormularioPrincipalMediator>();

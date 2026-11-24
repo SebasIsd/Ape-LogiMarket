@@ -54,6 +54,9 @@ public class RepositorioPedido : IRepositorioPedido
     {
         var pedidos = await _db.Pedidos
             .Include(p => p.Cliente)
+            .Include(p => p.Pago)
+            .Include(p => p.Despacho)
+            .Include(p => p.Devolucion)
             .OrderByDescending(p => p.FechaCreacion)
             .ToListAsync(ct);
 
@@ -111,24 +114,37 @@ public class RepositorioPedido : IRepositorioPedido
         if (entry.State == EntityState.Detached)
             _db.Pedidos.Update(pedido);
 
-        // Pago / Despacho / Devolución nuevos: llevan Guid asignado en el constructor, por lo que
-        // EF los marcaría como "Modified" (UPDATE de 0 filas). Se agregan explícitamente como "Added".
-        foreach (var hijo in new object?[] { pedido.Pago, pedido.Despacho, pedido.Devolucion })
+        // EF marca como "Modified" toda entidad nueva cuyo Guid ya viene asignado desde el constructor
+        // (Pago, Despacho, Devolución, líneas), lo que produce un UPDATE de 0 filas y la
+        // DbUpdateConcurrencyException. Se consulta la BD y se fija Added o Modified según exista la fila.
+        async Task CorregirEstadoAsync(object? entidad)
         {
-            if (hijo is not null && _db.Entry(hijo).State == EntityState.Detached)
-                _db.Add(hijo);
+            if (entidad is null) return;
+            var e = _db.Entry(entidad);
+            if (e.State == EntityState.Detached) e.State = EntityState.Unchanged;
+            var enBd = await e.GetDatabaseValuesAsync(ct);   // null => la fila no existe
+            e.State = enBd is null ? EntityState.Added : EntityState.Modified;
         }
 
-        // Las líneas son inmutables tras validar el pedido: solo se insertan las que aún no existen.
+        await CorregirEstadoAsync(pedido.Pago);
+        await CorregirEstadoAsync(pedido.Despacho);
+        await CorregirEstadoAsync(pedido.Devolucion);
+
         foreach (var d in pedido.Detalles)
         {
-            var e = _db.Entry(d);
-            if (e.State != EntityState.Detached) continue;
-            _db.PedidoDetalles.Add(d);
-            e.Property(x => x.PedidoId).CurrentValue = pedido.Id;
+            await CorregirEstadoAsync(d);
+            _db.Entry(d).Property(x => x.PedidoId).CurrentValue = pedido.Id;
         }
 
-        await _db.SaveChangesAsync(ct);
+        try
+        {
+            await _db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            var entidades = string.Join(", ", ex.Entries.Select(x => $"{x.Entity.GetType().Name}={x.State}"));
+            throw new InvalidOperationException($"Conflicto al guardar el pedido. Entidades: {entidades}", ex);
+        }
     }
 
     public async Task<bool> ExistePagoPorClaveAsync(string clave, CancellationToken ct = default)

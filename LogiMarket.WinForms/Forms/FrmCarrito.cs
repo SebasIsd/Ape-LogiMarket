@@ -366,15 +366,21 @@ public class FrmCarrito : UserControl, IViewRefrescable
     {
         try
         {
+            // Conserva la selección actual al recargar (p. ej. tras crear un cliente)
+            var clienteSel = cmbClientes.SelectedValue as Guid?;
+            var productoSel = cmbProductos.SelectedValue as string;
+
             var clientes = await _repoClientes.ListarAsync();
             cmbClientes.DataSource = clientes;
             cmbClientes.DisplayMember = "Nombre";
             cmbClientes.ValueMember = "Id";
+            if (clienteSel.HasValue) cmbClientes.SelectedValue = clienteSel.Value;
 
             var elementos = await _catalogo.ListarTodoAsync();
             cmbProductos.DataSource = elementos;
             cmbProductos.DisplayMember = "Nombre";
             cmbProductos.ValueMember = "Sku";
+            if (productoSel is not null) cmbProductos.SelectedValue = productoSel;
         }
         catch (Exception ex)
         {
@@ -574,7 +580,7 @@ public class FrmCarrito : UserControl, IViewRefrescable
     // IViewRefrescable
     public void OnPedidoConfirmado(Guid pedidoId) { }
     public void OnStockModificado() { }
-    public void OnCatalogoActualizado() { }
+    public void OnCatalogoActualizado() => CargarCombos(this, EventArgs.Empty);
     public void OnDespachoRegistrado(Guid pedidoId) { }
     public void OnDevolucionProcesada(Guid pedidoId) { }
 }

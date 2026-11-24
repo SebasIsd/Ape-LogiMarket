@@ -19,7 +19,7 @@ public abstract class ProcesarDevolucionTemplate
 
         if (aceptada)
         {
-            ReintegrarStock(pedido);
+            await ReintegrarStockAsync(pedido, ct);
         }
 
         var dev = new Devolucion(pedido.Id, motivo, reembolso, aceptada);
@@ -47,6 +47,6 @@ public abstract class ProcesarDevolucionTemplate
         return pedido.Subtotal.Subtract(pedido.Descuento);
     }
 
-    protected abstract void ReintegrarStock(Pedido pedido);
+    protected abstract Task ReintegrarStockAsync(Pedido pedido, CancellationToken ct);
     protected abstract Task PersistirAsync(Devolucion dev, CancellationToken ct);
 }

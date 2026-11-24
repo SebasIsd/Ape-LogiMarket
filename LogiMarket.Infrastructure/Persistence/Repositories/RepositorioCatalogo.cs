@@ -81,22 +81,22 @@ public class RepositorioCatalogo : IRepositorioCatalogo
 
     public async Task ActualizarProductoAsync(ProductoSimple producto, CancellationToken ct = default)
     {
-        var tracked = _db.Productos.Local.FirstOrDefault(p => p.Id == producto.Id)
-            ?? await _db.Productos.FirstOrDefaultAsync(p => p.Id == producto.Id, ct);
-
-        if (tracked is null)
+        foreach (var e in _db.ChangeTracker.Entries<ProductoSimple>()
+                     .Where(e => e.Entity.Id == producto.Id)
+                     .ToList())
         {
-            _db.Productos.Update(producto);
-        }
-        else if (!ReferenceEquals(tracked, producto))
-        {
-            // Misma clave, otra instancia → copiar el stock al trackeado
-            var entry = _db.Entry(tracked);
-            entry.Property(nameof(ProductoSimple.Stock)).CurrentValue = producto.Stock;
-            entry.Property(nameof(ProductoSimple.Stock)).IsModified = true;
+            e.State = EntityState.Detached;
         }
 
-        await _db.SaveChangesAsync(ct);
+        var filas = await _db.Productos
+            .Where(p => p.Id == producto.Id)
+            .ExecuteUpdateAsync(
+                s => s.SetProperty(p => p.Stock, producto.Stock),
+                ct);
+
+        if (filas == 0)
+            throw new DomainException(
+                $"No se pudo actualizar el stock del producto {producto.Sku} (Id={producto.Id}).");
     }
 
     private async Task PersistirKitAsync(KitCompuesto kit, CancellationToken ct)

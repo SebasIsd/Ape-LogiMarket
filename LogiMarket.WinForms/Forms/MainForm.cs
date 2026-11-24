@@ -1,6 +1,7 @@
 ﻿using LogiMarket.Application.Metrics;
 using LogiMarket.Application.Ports.Payments;
 using LogiMarket.WinForms.Mediator;
+using LogiMarket.WinForms.UI;
 using Microsoft.Extensions.DependencyInjection;
 using System.Windows.Forms;
 
@@ -58,6 +59,9 @@ public partial class MainForm : Form, IViewRefrescable
 
     private void AgregarPestana(string titulo, Func<Control> creador)
     {
+        // Autorización por rol: si el rol no tiene acceso, la pestaña ni se crea
+        if (!PermisosModulos.PuedeVer(_sesion.Rol, titulo)) return;
+
         var tab = new TabPage(titulo);
         try
         {

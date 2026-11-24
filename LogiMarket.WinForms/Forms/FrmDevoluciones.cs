@@ -26,12 +26,14 @@ public class FrmDevoluciones : UserControl, IViewRefrescable
     private TableLayoutPanel pnlRaiz;
 
     private readonly IRepositorioPedido _repo;
+    private readonly DevolucionService _servicio;
     private readonly IFormularioMediator _mediator;
     private Pedido? _pedidoSeleccionado;
 
-    public FrmDevoluciones(IRepositorioPedido repo, IFormularioMediator mediator)
+    public FrmDevoluciones(IRepositorioPedido repo, DevolucionService servicio, IFormularioMediator mediator)
     {
         _repo = repo;
+        _servicio = servicio;
         _mediator = mediator;
         _mediator.Registrar(this);
         InicializarComponentes();
@@ -181,31 +183,23 @@ public class FrmDevoluciones : UserControl, IViewRefrescable
         {
             var motivo = cmbMotivo.SelectedIndex == 0 ? MotivoDevolucion.Defecto : MotivoDevolucion.Arrepentimiento;
 
-            // Template Method: secuencia invariante con variantes
-            ProcesarDevolucionTemplate handler = motivo switch
-            {
-                MotivoDevolucion.Defecto => new DevolucionDefectoHandler(
-                    p => { /* reintegro simulado */ },
-                    async (d, ct) => { /* persistencia simulada */ }),
-                MotivoDevolucion.Arrepentimiento => new DevolucionArrepentimientoHandler(
-                    p => { /* reintegro simulado */ },
-                    async (d, ct) => { /* persistencia simulada */ }),
-                _ => throw new ArgumentException("Motivo inválido")
-            };
-
-            var devolucion = await handler.EjecutarAsync(_pedidoSeleccionado, motivo, CancellationToken.None);
+            // Template Method (dentro del servicio): persiste, reintegra stock y cambia el estado del pedido
+            var pedidoId = _pedidoSeleccionado.Id;
+            var devolucion = await _servicio.ProcesarAsync(pedidoId, motivo);
 
             if (devolucion.Aceptada)
             {
                 lbReembolso.Text = $"$ {devolucion.Reembolso.Amount:0.00}";
-                MessageBox.Show($"Devolución aceptada. Reembolso: $ {devolucion.Reembolso.Amount:0.00}",
+                MessageBox.Show($"Devolución aceptada. Reembolso: $ {devolucion.Reembolso.Amount:0.00}\nEl pedido pasó a CANCELADO y el stock fue reintegrado.",
                     "Éxito", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                _mediator.NotificarDevolucionProcesada(_pedidoSeleccionado.Id);
+                _mediator.NotificarStockModificado();
+                _mediator.NotificarDevolucionProcesada(pedidoId);
             }
             else
             {
                 lbReembolso.Text = "Rechazada";
-                MessageBox.Show("Devolución rechazada según la política.",
+                _mediator.NotificarDevolucionProcesada(pedidoId);
+                MessageBox.Show("Devolución rechazada según la política (fuera de plazo). Queda registrada.",
                     "Rechazo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
 

@@ -171,6 +171,8 @@ public class FrmDespacho : UserControl, IViewRefrescable
         dgvDespachos.Columns.Add("colGuia", "Guía");
         dgvDespachos.Columns.Add("colTipo", "Tipo");
         dgvDespachos.Columns.Add("colFecha", "Fecha despacho");
+        dgvDespachos.Columns.Add("colCliente", "Cliente");
+        dgvDespachos.Columns.Add("colEstado", "Estado");
         pnlRaiz.Controls.Add(dgvDespachos, 1, 2);
 
         Controls.Add(pnlRaiz);
@@ -180,11 +182,30 @@ public class FrmDespacho : UserControl, IViewRefrescable
     {
         var pedidos = await _repo.ListarAsync();
         var pagados = pedidos.Where(p => p.EstadoActual == "PAGADO" || p.EstadoActual == "DESPACHADO").ToList();
+        CargarTablaDespachos(pedidos);
         cmbPedidosPagados.DataSource = PedidoItem.De(pagados);
         cmbPedidosPagados.DisplayMember = "Texto";
         cmbPedidosPagados.ValueMember = "Id";
         if (cmbPedidosPagados.SelectedValue is Guid) await CargarPedidoAsync();
         else _pedidoSeleccionado = null;
+    }
+
+    /// <summary>Historial de despachos: todos los pedidos que ya tienen un Despacho registrado.</summary>
+    private void CargarTablaDespachos(IEnumerable<Pedido> pedidos)
+    {
+        dgvDespachos.Rows.Clear();
+        foreach (var p in pedidos.Where(x => x.Despacho is not null).OrderByDescending(x => x.Despacho!.FechaDespacho))
+        {
+            var d = p.Despacho!;
+            dgvDespachos.Rows.Add(
+                d.Id.ToString("N")[..8].ToUpperInvariant(),
+                p.Id.ToString("N")[..8].ToUpperInvariant(),
+                d.Guia,
+                d.TipoEnvio,
+                d.FechaDespacho.ToLocalTime().ToString("dd/MM/yyyy HH:mm"),
+                p.Cliente?.Nombre ?? "—",
+                p.EstadoActual);
+        }
     }
 
     private async Task CargarPedidoAsync()

@@ -76,13 +76,14 @@ public class FrmPedidos : UserControl, IViewRefrescable
 
         btnVerDetalle = UIHelper.CrearBotonSecundario("Ver detalle", 110);
         btnVerDetalle.Location = new Point(730, 4);
-        btnVerDetalle.Click += (_, _) => MostrarDetalle();
+        btnVerDetalle.Click += async (_, _) => await AbrirDetalleAsync();
 
         dgvPedidos = UIHelper.CrearDataGridView();
         dgvPedidos.Location = new Point(0, 45);
         dgvPedidos.Size = new Size(pnlSuperior.Width - 20, pnlSuperior.Height - 55);
         dgvPedidos.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom;
         dgvPedidos.SelectionChanged += (_, _) => MostrarDetalle();
+        dgvPedidos.CellDoubleClick += async (_, e) => { if (e.RowIndex >= 0) await AbrirDetalleAsync(); };
 
         pnlSuperior.Controls.AddRange(new Control[] { lbFiltro, txtFiltro, btnFiltrar, btnLimpiar, btnVerDetalle, dgvPedidos });
         pnlSuperior.Resize += (_, _) => dgvPedidos.Size = new Size(pnlSuperior.Width - 20, pnlSuperior.Height - 55);
@@ -184,6 +185,30 @@ public class FrmPedidos : UserControl, IViewRefrescable
                     p.FechaCreacion.ToString("yyyy-MM-dd HH:mm"),
                     p.Total.Amount.ToString("0.00"));
             }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Error: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
+    private async Task AbrirDetalleAsync()
+    {
+        try
+        {
+            if (dgvPedidos.CurrentRow is null)
+            {
+                MessageBox.Show("Seleccione un pedido de la tabla.", "Aviso", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            var idStr = dgvPedidos.CurrentRow.Cells["colId"].Value?.ToString();
+            var resumen = _pedidos.FirstOrDefault(p => p.Id.ToString("N")[..8] == idStr);
+            if (resumen is null) return;
+
+            // Recarga el agregado completo (líneas, pago, despacho, devolución)
+            var pedido = await _repo.ObtenerPorIdAsync(resumen.Id) ?? resumen;
+            using var dlg = new FrmDetallePedido(pedido);
+            dlg.ShowDialog(FindForm());
         }
         catch (Exception ex)
         {

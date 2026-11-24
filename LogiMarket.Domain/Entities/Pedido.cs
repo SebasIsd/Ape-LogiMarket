@@ -112,7 +112,7 @@ public class Pedido : ICloneable
         foreach (var d in _detalles)
         {
             //aqui suma las cantidades de cada detalle del pedido, sin importar si es un kit o un producto simple
-            total += d.Cantidad; 
+            total += d.Cantidad;
         }
         return total;
     }
@@ -137,6 +137,22 @@ public class Pedido : ICloneable
         FechaEntrega = DateTime.UtcNow;
     }
     public void Cancelar() => _estado.Cancelar(new PedidoContext(this, CambiarEstado));
+
+    /// <summary>
+    /// Registra la devolución de un pedido ENTREGADO. Si fue aceptada, el pedido pasa a CANCELADO
+    /// (venta revertida); si fue rechazada, queda ENTREGADO y solo se guarda el registro.
+    /// </summary>
+    public void RegistrarDevolucion(Devolucion devolucion)
+    {
+        if (devolucion is null) throw new DomainException("Devolución nula.");
+        if (_estado.Nombre != "ENTREGADO")
+            throw new OperacionNoPermitidaException("Solo se devuelven pedidos ENTREGADO.");
+        if (Devolucion is not null)
+            throw new OperacionNoPermitidaException("El pedido ya fue devuelto.");
+
+        Devolucion = devolucion;
+        if (devolucion.Aceptada) CambiarEstado(new CanceladoState());
+    }
     // metodo para cambiar el estado del pedido, se llama desde los estados concretos
     private void CambiarEstado(IEstadoPedido nuevo)
     {
