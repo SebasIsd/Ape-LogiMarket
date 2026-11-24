@@ -19,7 +19,7 @@ public class ConfirmacionPedidoFacade
     private readonly IRepositorioCatalogo _catalogo;
     private readonly IRepositorioMovimientos _movimientos;
     private readonly IUnitOfWork _uow;
-    private readonly IRepositorioOutbox _outbox;
+    private readonly IRepositorioAuditoria _auditoria;
     private readonly IPublisher _publisher;
     private readonly ISesionUsuario _sesion;
 
@@ -30,7 +30,7 @@ public class ConfirmacionPedidoFacade
         IRepositorioCatalogo catalogo,
         IRepositorioMovimientos movimientos,
         IUnitOfWork uow,
-        IRepositorioOutbox outbox,
+        IRepositorioAuditoria auditoria,
         IPublisher publisher,
         ISesionUsuario sesion)
     {
@@ -40,7 +40,7 @@ public class ConfirmacionPedidoFacade
         _catalogo = catalogo;
         _movimientos = movimientos;
         _uow = uow;
-        _outbox = outbox;
+        _auditoria = auditoria;
         _publisher = publisher;
         _sesion = sesion;
     }
@@ -58,22 +58,31 @@ public class ConfirmacionPedidoFacade
         var pedido = await _repoPedido.ObtenerPorIdAsync(pedidoId, ct)
             ?? throw new DomainException("Pedido no encontrado.");
 
+        // El pedido llega VALIDADO desde el carrito (o BORRADOR si se cobra directamente)
+        if (pedido.EstadoActual != "BORRADOR" && pedido.EstadoActual != "VALIDADO")
+            return ResultadoOperacion.Error($"El pedido está {pedido.EstadoActual} y no se puede cobrar.");
+
         // 3. Pipeline de validación (Chain of Responsibility)
         var validacion = await _pipeline.EjecutarAsync(pedido, ct);
-        if (!validacion.Ok) return ResultadoOperacion.Error(validacion.Error!);
+        if (!validacion.Ok)
+        {
+            await RegistrarAuditoriaAsync("COBRO_RECHAZADO", $"Pedido {Corto(pedido.Id)}: {validacion.Error}", ct);
+            return ResultadoOperacion.Error(validacion.Error!);
+        }
 
         // 4. Transacción atómica
         await using var tx = await _uow.BeginTransactionAsync(ct);
         try
         {
-            // Transición de estado: Borrador → Validado
-            pedido.Validar();
+            // Transición de estado: Borrador → Validado (si ya está validado no se repite)
+            if (pedido.EstadoActual == "BORRADOR") pedido.Validar();
 
             // 5. Cobro simulado a través de la cadena Proxy → Decorator → Adapter
             var resultado = await _pasarela.CobrarAsync(pedido.Total, claveIdempotencia, ct);
             if (!resultado.Aprobado)
             {
                 await tx.RollbackAsync(ct);
+                await RegistrarAuditoriaAsync("COBRO_RECHAZADO", $"Pedido {Corto(pedido.Id)}: {resultado.Error}", ct);
                 return ResultadoOperacion.Error(resultado.Error ?? "Cobro rechazado.");
             }
 
@@ -92,21 +101,15 @@ public class ConfirmacionPedidoFacade
             // 8. Persistir pedido actualizado
             await _repoPedido.ActualizarAsync(pedido, ct);
 
-            // 9. Evento Outbox (misma transacción)
-            var payload = System.Text.Json.JsonSerializer.Serialize(new
-            {
-                pedido.Id,
-                pedido.Total.Amount,
-                ClaveIdempotencia = claveIdempotencia
-            });
-            await _outbox.AgregarAsync(new EventoOutbox("PedidoPagado", payload), ct);
-
-            await tx.CommitAsync(ct);
-
-            // 10. Publicar evento de dominio (después del commit)
+            // 9. Observer: el publisher registra el evento en el Outbox dentro de la MISMA transacción
             await _publisher.PublishAsync(
                 new PedidoPagadoEvent(Guid.NewGuid(), DateTime.UtcNow, "PedidoPagado", pedido.Id, pedido.Total.Amount),
                 ct);
+
+            await tx.CommitAsync(ct);
+
+            await RegistrarAuditoriaAsync("COBRO_OK",
+                $"Pedido {Corto(pedido.Id)} cobrado por $ {pedido.Total.Amount:0.00} (ref {pago.Referencia})", ct);
 
             return ResultadoOperacion.Ok(new { pedido.Id, pedido.Total.Amount, pago.Referencia });
         }
@@ -115,6 +118,19 @@ public class ConfirmacionPedidoFacade
             await tx.RollbackAsync(ct);
             throw;
         }
+    }
+
+    private static string Corto(Guid id) => id.ToString("N")[..8].ToUpperInvariant();
+
+    /// <summary>La auditoría nunca debe romper la operación principal.</summary>
+    private async Task RegistrarAuditoriaAsync(string accion, string detalle, CancellationToken ct)
+    {
+        try
+        {
+            var usuario = string.IsNullOrEmpty(_sesion.Username) ? "sistema" : _sesion.Username;
+            await _auditoria.AgregarAsync(new Auditoria(usuario, accion, detalle), ct);
+        }
+        catch { /* se ignora: la operación de negocio ya terminó */ }
     }
 
     /// <summary>

@@ -1,5 +1,6 @@
 ﻿using LogiMarket.Application.Ports.Persistence;
 using LogiMarket.Domain.Entities.Catalog;
+using LogiMarket.Domain.Exceptions;
 using LogiMarket.Domain.ValueObjects;
 using LogiMarket.Infrastructure.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -19,14 +20,15 @@ public class RepositorioCatalogo : IRepositorioCatalogo
         var kit = await _db.Kits.AsNoTracking().FirstOrDefaultAsync(k => k.Sku == sku, ct);
         if (kit is null) return null;
 
-        // Cargar componentes con sus elementos
         await CargarComponentesAsync(kit, ct);
         return kit;
     }
 
     private async Task CargarComponentesAsync(KitCompuesto kit, CancellationToken ct)
     {
+        // AsNoTracking evita que Include deje ProductoSimple trackeados en el DbContext del MainForm
         var componentes = await _db.KitComponentes
+            .AsNoTracking()
             .Include(c => c.Producto)
             .Include(c => c.KitHijo)
             .Where(c => c.KitPadreId == kit.Id)
@@ -42,8 +44,7 @@ public class RepositorioCatalogo : IRepositorioCatalogo
             var elemento = ce.ResolverElemento();
             if (elemento is KitCompuesto kitHijo)
                 await CargarComponentesAsync(kitHijo, ct);
-            var componente = new KitComponente(elemento, ce.Cantidad);
-            lista.Add(componente);
+            lista.Add(new KitComponente(elemento, ce.Cantidad));
         }
     }
 
@@ -80,7 +81,21 @@ public class RepositorioCatalogo : IRepositorioCatalogo
 
     public async Task ActualizarProductoAsync(ProductoSimple producto, CancellationToken ct = default)
     {
-        _db.Productos.Update(producto);
+        var tracked = _db.Productos.Local.FirstOrDefault(p => p.Id == producto.Id)
+            ?? await _db.Productos.FirstOrDefaultAsync(p => p.Id == producto.Id, ct);
+
+        if (tracked is null)
+        {
+            _db.Productos.Update(producto);
+        }
+        else if (!ReferenceEquals(tracked, producto))
+        {
+            // Misma clave, otra instancia → copiar el stock al trackeado
+            var entry = _db.Entry(tracked);
+            entry.Property(nameof(ProductoSimple.Stock)).CurrentValue = producto.Stock;
+            entry.Property(nameof(ProductoSimple.Stock)).IsModified = true;
+        }
+
         await _db.SaveChangesAsync(ct);
     }
 
@@ -103,7 +118,6 @@ public class RepositorioCatalogo : IRepositorioCatalogo
             {
                 entity.TipoElemento = "Kit";
                 entity.KitHijoId = kh.Id;
-                // Asegurar que el kit hijo ya esté persistido
                 if (await _db.Kits.FindAsync(new object?[] { kh.Id }, ct) is null)
                 {
                     _db.Kits.Add(kh);

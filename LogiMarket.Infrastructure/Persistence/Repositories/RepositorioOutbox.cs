@@ -22,6 +22,13 @@ public class RepositorioOutbox : IRepositorioOutbox
             .Take(limite)
             .ToListAsync(ct);
 
+    public async Task<IReadOnlyList<EventoOutbox>> ListarRecientesAsync(int limite = 100, CancellationToken ct = default)
+        => await _db.Outbox
+            .AsNoTracking()
+            .OrderByDescending(e => e.CreadoEn)
+            .Take(limite)
+            .ToListAsync(ct);
+
     public async Task MarcarProcesadoAsync(Guid id, CancellationToken ct = default)
     {
         var e = await _db.Outbox.FindAsync(new object?[] { id }, ct)

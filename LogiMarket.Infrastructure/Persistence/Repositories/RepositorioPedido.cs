@@ -98,6 +98,8 @@ public class RepositorioPedido : IRepositorioPedido
         foreach (var d in pedido.Detalles)
         {
             _db.PedidoDetalles.Add(d);
+            // PedidoDetalle no tiene navegación hacia Pedido: la FK se asigna explícitamente
+            _db.Entry(d).Property(x => x.PedidoId).CurrentValue = pedido.Id;
         }
 
         await _db.SaveChangesAsync(ct);
@@ -105,11 +107,27 @@ public class RepositorioPedido : IRepositorioPedido
 
     public async Task ActualizarAsync(Pedido pedido, CancellationToken ct = default)
     {
-        _db.Pedidos.Update(pedido);
-        // Sincronizar detalles
-        var existentes = await _db.PedidoDetalles.Where(d => d.PedidoId == pedido.Id).ToListAsync(ct);
-        _db.PedidoDetalles.RemoveRange(existentes);
-        foreach (var d in pedido.Detalles) _db.PedidoDetalles.Add(d);
+        var entry = _db.Entry(pedido);
+        if (entry.State == EntityState.Detached)
+            _db.Pedidos.Update(pedido);
+
+        // Pago / Despacho / Devolución nuevos: llevan Guid asignado en el constructor, por lo que
+        // EF los marcaría como "Modified" (UPDATE de 0 filas). Se agregan explícitamente como "Added".
+        foreach (var hijo in new object?[] { pedido.Pago, pedido.Despacho, pedido.Devolucion })
+        {
+            if (hijo is not null && _db.Entry(hijo).State == EntityState.Detached)
+                _db.Add(hijo);
+        }
+
+        // Las líneas son inmutables tras validar el pedido: solo se insertan las que aún no existen.
+        foreach (var d in pedido.Detalles)
+        {
+            var e = _db.Entry(d);
+            if (e.State != EntityState.Detached) continue;
+            _db.PedidoDetalles.Add(d);
+            e.Property(x => x.PedidoId).CurrentValue = pedido.Id;
+        }
+
         await _db.SaveChangesAsync(ct);
     }
 
