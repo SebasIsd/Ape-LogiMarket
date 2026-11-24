@@ -11,17 +11,22 @@ namespace LogiMarket.WinForms.Forms;
 public partial class FrmCatalogo : UserControl, IViewRefrescable
 {
     // --- Componentes ---
+    private Label lbTitulo;
+    private Label lbSubtitulo;
+    private Label lbBuscar;
+    private TextBox txtBuscar;
+    private Button btnNuevoProducto;
+    private Button btnNuevoKit;
     private DataGridView dgvCatalogo;
-    private Button btnExpandir;
-    private Button btnPeso;
-    private TextBox txtSkuSeleccionado;
-    private Label lbSku;
+    private GroupBox grpEstructura;
+    private TreeView tvEstructura;
+    private Button btnGuardarComposicion;
     private TableLayoutPanel pnlRaiz;
-    private Panel pnlAcciones;
 
     private readonly IRepositorioCatalogo _catalogo;
     private readonly IFormularioMediator _mediator;
     private readonly CatalogoVisualFlyweightFactory _flyweight;
+    private IElementoCatalogo? _elementoSeleccionado;
 
     public FrmCatalogo(IRepositorioCatalogo catalogo, IFormularioMediator mediator, CatalogoVisualFlyweightFactory flyweight)
     {
@@ -32,54 +37,142 @@ public partial class FrmCatalogo : UserControl, IViewRefrescable
 
         InicializarComponentes();
         Load += async (_, _) => await CargarCatalogoAsync();
+        VisibleChanged += async (_, _) => { if (Visible) await CargarCatalogoAsync(); };
     }
 
     private void InicializarComponentes()
     {
-        BackColor = UIHelper.ColorGrisClaro;
+        BackColor = Color.FromArgb(245, 247, 250);
 
-        // --- Layout principal: grid arriba (70%), acciones abajo (30%) ---
-        pnlRaiz = new TableLayoutPanel
+        // --- Título ---
+        lbTitulo = new Label
         {
-            Dock = DockStyle.Fill,
-            ColumnCount = 1,
-            RowCount = 2,
-            Padding = new Padding(15)
+            Text = "Catálogo y kits",
+            Font = new Font("Segoe UI", 22, FontStyle.Bold),
+            ForeColor = Color.FromArgb(30, 60, 90),
+            Location = new Point(0, 0),
+            AutoSize = true
         };
-        pnlRaiz.RowStyles.Add(new RowStyle(SizeType.Percent, 70));
-        pnlRaiz.RowStyles.Add(new RowStyle(SizeType.Percent, 30));
 
-        // --- Grid ---
+        lbSubtitulo = new Label
+        {
+            Text = "Productos individuales y kits compuestos sin ciclos",
+            Font = new Font("Segoe UI", 10),
+            ForeColor = Color.FromArgb(120, 120, 120),
+            Location = new Point(0, 35),
+            AutoSize = true
+        };
+
+        // --- Sección Buscar producto ---
+        lbBuscar = new Label
+        {
+            Text = "Buscar producto",
+            Font = new Font("Segoe UI", 9, FontStyle.Bold),
+            ForeColor = Color.FromArgb(50, 50, 50),
+            Location = new Point(0, 70),
+            AutoSize = true
+        };
+
+        txtBuscar = new TextBox
+        {
+            Location = new Point(0, 95),
+            Width = 400,
+            Height = 32,
+            Font = new Font("Segoe UI", 10),
+            PlaceholderText = "SKU, nombre o categoría"
+        };
+        txtBuscar.TextChanged += async (_, _) => await CargarCatalogoAsync();
+
+        // --- Botones Nuevo producto / Nuevo kit ---
+        btnNuevoProducto = new Button
+        {
+            Text = "Nuevo producto",
+            Location = new Point(420, 93),
+            Width = 140,
+            Height = 34,
+            BackColor = Color.White,
+            ForeColor = Color.FromArgb(50, 50, 50),
+            FlatStyle = FlatStyle.Flat,
+            Font = new Font("Segoe UI", 9)
+        };
+        btnNuevoProducto.FlatAppearance.BorderSize = 1;
+        btnNuevoProducto.Click += BtnNuevoProducto_Click;
+
+        btnNuevoKit = new Button
+        {
+            Text = "Nuevo kit",
+            Location = new Point(570, 93),
+            Width = 120,
+            Height = 34,
+            BackColor = Color.FromArgb(50, 50, 50),
+            ForeColor = Color.White,
+            FlatStyle = FlatStyle.Flat,
+            Font = new Font("Segoe UI", 9, FontStyle.Bold)
+        };
+        btnNuevoKit.FlatAppearance.BorderSize = 0;
+        btnNuevoKit.Click += BtnNuevoKit_Click;
+
+        // --- Tabla de catálogo ---
         dgvCatalogo = UIHelper.CrearDataGridView();
-        dgvCatalogo.Dock = DockStyle.Fill;
-        pnlRaiz.Controls.Add(dgvCatalogo, 0, 0);
+        dgvCatalogo.Location = new Point(0, 140);
+        dgvCatalogo.Size = new Size(700, 350);
+        dgvCatalogo.Columns.Add("colSku", "SKU");
+        dgvCatalogo.Columns.Add("colProducto", "Producto");
+        dgvCatalogo.Columns.Add("colPrecio", "Precio");
+        dgvCatalogo.Columns.Add("colStock", "Stock");
+        dgvCatalogo.SelectionChanged += DgvCatalogo_SelectionChanged;
 
-        // --- Panel de acciones ---
-        pnlAcciones = new Panel
+        // --- Panel lateral "Estructura del kit" ---
+        grpEstructura = UIHelper.CrearGroupBox("Estructura del kit");
+        grpEstructura.Location = new Point(720, 140);
+        grpEstructura.Size = new Size(280, 350);
+
+        tvEstructura = new TreeView
         {
             Dock = DockStyle.Fill,
-            Padding = new Padding(0, 10, 0, 0)
+            Font = new Font("Segoe UI", 10),
+            BackColor = Color.White,
+            BorderStyle = BorderStyle.None,
+            ShowLines = true,
+            ShowPlusMinus = true
         };
+        grpEstructura.Controls.Add(tvEstructura);
 
-        lbSku = UIHelper.CrearLabel("SKU seleccionado:", negrita: true);
-        lbSku.Location = new Point(0, 5);
+        // --- Botón Guardar composición ---
+        btnGuardarComposicion = new Button
+        {
+            Text = "Guardar composición",
+            Location = new Point(720, 500),
+            Width = 280,
+            Height = 40,
+            BackColor = Color.FromArgb(50, 50, 50),
+            ForeColor = Color.White,
+            FlatStyle = FlatStyle.Flat,
+            Font = new Font("Segoe UI", 10, FontStyle.Bold)
+        };
+        btnGuardarComposicion.FlatAppearance.BorderSize = 0;
+        btnGuardarComposicion.Click += BtnGuardarComposicion_Click;
 
-        txtSkuSeleccionado = UIHelper.CrearTextBox(200);
-        txtSkuSeleccionado.ReadOnly = true;
-        txtSkuSeleccionado.Location = new Point(130, 3);
+        // --- Agregar todo ---
+        Controls.Add(lbTitulo);
+        Controls.Add(lbSubtitulo);
+        Controls.Add(lbBuscar);
+        Controls.Add(txtBuscar);
+        Controls.Add(btnNuevoProducto);
+        Controls.Add(btnNuevoKit);
+        Controls.Add(dgvCatalogo);
+        Controls.Add(grpEstructura);
+        Controls.Add(btnGuardarComposicion);
 
-        btnExpandir = UIHelper.CrearBotonSecundario("🔍 Expandir kit (Iterator)", 200);
-        btnExpandir.Location = new Point(340, 0);
-        btnExpandir.Click += BtnExpandir_Click;
+        Resize += (_, _) => AjustarLayout();
+    }
 
-        btnPeso = UIHelper.CrearBoton("⚖️ Calcular peso (Visitor)", UIHelper.ColorInfo, ancho: 200);
-        btnPeso.Location = new Point(550, 0);
-        btnPeso.Click += BtnPeso_Click;
-
-        pnlAcciones.Controls.AddRange(new Control[] { lbSku, txtSkuSeleccionado, btnExpandir, btnPeso });
-        pnlRaiz.Controls.Add(pnlAcciones, 0, 1);
-
-        Controls.Add(pnlRaiz);
+    private void AjustarLayout()
+    {
+        int ancho = ClientSize.Width - 40;
+        dgvCatalogo.Size = new Size(ancho - 300, 350);
+        grpEstructura.Location = new Point(ancho - 280, 140);
+        btnGuardarComposicion.Location = new Point(ancho - 280, 500);
     }
 
     private async Task CargarCatalogoAsync()
@@ -87,34 +180,32 @@ public partial class FrmCatalogo : UserControl, IViewRefrescable
         try
         {
             var elementos = await _catalogo.ListarTodoAsync();
+            var filtro = txtBuscar.Text.Trim().ToLower();
+
             dgvCatalogo.Rows.Clear();
-            dgvCatalogo.Columns.Clear();
-            dgvCatalogo.Columns.Add("colSku", "SKU");
-            dgvCatalogo.Columns.Add("colNombre", "Nombre");
-            dgvCatalogo.Columns.Add("colTipo", "Tipo");
-            dgvCatalogo.Columns.Add("colPrecio", "Precio");
-            dgvCatalogo.Columns.Add("colStock", "Stock");
-            dgvCatalogo.Columns.Add("colPeso", "Peso (kg)");
 
             foreach (var elem in elementos)
             {
+                // Aplicar filtro
+                if (!string.IsNullOrEmpty(filtro) &&
+                    !elem.Sku.ToLower().Contains(filtro) &&
+                    !elem.Nombre.ToLower().Contains(filtro))
+                    continue;
+
                 var metadata = _flyweight.Obtener(
                     elem.Sku, elem.Nombre, elem.EsKit,
                     elem is ProductoSimple p ? p.PesoKg : 0m);
 
                 int stock = elem is ProductoSimple ps ? ps.Stock : 0;
                 var precio = elem.CalcularPrecioTotal(1);
+                var stockTexto = elem.EsKit ? "—" : stock.ToString();
 
                 dgvCatalogo.Rows.Add(
-                    metadata.Sku, metadata.Nombre, metadata.EsKit ? "KIT" : "Producto",
-                    precio.Amount.ToString("0.00"), stock, metadata.PesoKg.ToString("0.00"));
+                    metadata.Sku,
+                    metadata.Nombre,
+                    $"USD {precio.Amount:0.00}",
+                    stockTexto);
             }
-
-            dgvCatalogo.SelectionChanged += (_, _) =>
-            {
-                if (dgvCatalogo.CurrentRow is not null)
-                    txtSkuSeleccionado.Text = dgvCatalogo.CurrentRow.Cells["colSku"].Value?.ToString() ?? "";
-            };
         }
         catch (Exception ex)
         {
@@ -123,67 +214,93 @@ public partial class FrmCatalogo : UserControl, IViewRefrescable
         }
     }
 
-    private async void BtnExpandir_Click(object? sender, EventArgs e)
+    private async void DgvCatalogo_SelectionChanged(object? sender, EventArgs e)
     {
-        var sku = txtSkuSeleccionado.Text.Trim();
-        if (string.IsNullOrEmpty(sku))
+        if (dgvCatalogo.CurrentRow is null) return;
+
+        var sku = dgvCatalogo.CurrentRow.Cells["colSku"].Value?.ToString();
+        if (string.IsNullOrEmpty(sku)) return;
+
+        _elementoSeleccionado = await _catalogo.ObtenerPorSkuAsync(sku);
+        if (_elementoSeleccionado is null) return;
+
+        // Mostrar estructura del kit en el TreeView
+        tvEstructura.Nodes.Clear();
+
+        if (_elementoSeleccionado.EsKit && _elementoSeleccionado is KitCompuesto kit)
         {
-            MessageBox.Show("Selecciona un SKU de la tabla.", "Aviso",
+            grpEstructura.Text = $"Estructura del kit\n{kit.Sku}";
+            var nodoRaiz = tvEstructura.Nodes.Add(kit.Sku);
+            nodoRaiz.NodeFont = new Font("Segoe UI", 10, FontStyle.Bold);
+            CargarNodosKit(nodoRaiz, kit);
+            tvEstructura.ExpandAll();
+        }
+        else
+        {
+            grpEstructura.Text = "Estructura del kit";
+            tvEstructura.Nodes.Add("Seleccione un kit para ver su estructura");
+        }
+    }
+
+    private void CargarNodosKit(TreeNode nodoPadre, KitCompuesto kit)
+    {
+        foreach (var componente in kit.Componentes)
+        {
+            if (componente.Elemento is KitCompuesto kitHijo)
+            {
+                var nodoHijo = nodoPadre.Nodes.Add($"- {kitHijo.Sku}");
+                nodoHijo.NodeFont = new Font("Segoe UI", 9, FontStyle.Bold);
+                CargarNodosKit(nodoHijo, kitHijo);
+            }
+            else if (componente.Elemento is ProductoSimple producto)
+            {
+                nodoPadre.Nodes.Add($"- {producto.Sku} · {producto.Nombre}");
+            }
+        }
+    }
+
+    private async void BtnNuevoProducto_Click(object? sender, EventArgs e)
+    {
+        using var form = new FrmNuevoProducto(_catalogo);
+        if (form.ShowDialog(this) == DialogResult.OK && form.ProductoGuardado)
+        {
+            await CargarCatalogoAsync();
+            _mediator.NotificarCatalogoActualizado();
+        }
+    }
+
+    private async void BtnNuevoKit_Click(object? sender, EventArgs e)
+    {
+        using var form = new FrmNuevoKit(_catalogo);
+        if (form.ShowDialog(this) == DialogResult.OK && form.KitGuardado)
+        {
+            await CargarCatalogoAsync();
+            _mediator.NotificarCatalogoActualizado();
+        }
+    }
+
+    private async void BtnGuardarComposicion_Click(object? sender, EventArgs e)
+    {
+        if (_elementoSeleccionado is null)
+        {
+            MessageBox.Show("Seleccione un kit de la tabla.", "Aviso",
                 MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
 
-        var elem = await _catalogo.ObtenerPorSkuAsync(sku);
-        if (elem is null)
+        if (!_elementoSeleccionado.EsKit || _elementoSeleccionado is not KitCompuesto kit)
         {
-            MessageBox.Show("SKU no encontrado.", "Error",
-                MessageBoxButtons.OK, MessageBoxIcon.Error);
-            return;
-        }
-        if (!elem.EsKit)
-        {
-            MessageBox.Show("Solo se pueden expandir kits.", "Aviso",
+            MessageBox.Show("Solo se pueden editar kits.", "Aviso",
                 MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
         }
 
-        var iterador = new Domain.Iterators.KitPhysicalIterator(elem, 1);
-        var sb = new System.Text.StringBuilder($"Expansión de {sku}:\n\n");
-        foreach (var (producto, cantidad) in iterador.GetEnumerator())
-            sb.AppendLine($"  • {producto.Sku} - {producto.Nombre} × {cantidad}");
-
-        MessageBox.Show(sb.ToString(), "Iterator - Expansión de kit",
-            MessageBoxButtons.OK, MessageBoxIcon.Information);
-    }
-
-    private async void BtnPeso_Click(object? sender, EventArgs e)
-    {
-        var sku = txtSkuSeleccionado.Text.Trim();
-        if (string.IsNullOrEmpty(sku))
+        using var form = new FrmNuevoKit(_catalogo, kit);
+        if (form.ShowDialog(this) == DialogResult.OK && form.KitGuardado)
         {
-            MessageBox.Show("Selecciona un SKU de la tabla.", "Aviso",
-                MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            return;
+            await CargarCatalogoAsync();
+            _mediator.NotificarCatalogoActualizado();
         }
-
-        var elem = await _catalogo.ObtenerPorSkuAsync(sku);
-        if (elem is null)
-        {
-            MessageBox.Show("SKU no encontrado.", "Error",
-                MessageBoxButtons.OK, MessageBoxIcon.Error);
-            return;
-        }
-
-        var visitor = new DesgloseFisicoVisitor();
-        visitor.Calcular(elem, 1);
-
-        var sb = new System.Text.StringBuilder($"Desglose físico de {sku}:\n\n");
-        foreach (var (s, c) in visitor.Desglose)
-            sb.AppendLine($"  • {s}: {c} unidades");
-        sb.AppendLine($"\n⚖️ Peso total: {visitor.PesoTotal:0.00} kg");
-
-        MessageBox.Show(sb.ToString(), "Visitor - Desglose físico",
-            MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 
     // IViewRefrescable

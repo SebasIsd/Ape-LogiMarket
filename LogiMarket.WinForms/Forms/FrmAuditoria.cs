@@ -29,6 +29,7 @@ public class FrmAuditoria : UserControl, IViewRefrescable
         _mediator.Registrar(this);
         InicializarComponentes();
         Load += async (_, _) => await CargarDatosAsync();
+        VisibleChanged += async (_, _) => { if (Visible) await CargarDatosAsync(); };
     }
 
     private void InicializarComponentes()
@@ -42,7 +43,7 @@ public class FrmAuditoria : UserControl, IViewRefrescable
             RowCount = 3,
             Padding = new Padding(15)
         };
-        pnlRaiz.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
+        pnlRaiz.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         pnlRaiz.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
         pnlRaiz.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
 
@@ -51,43 +52,76 @@ public class FrmAuditoria : UserControl, IViewRefrescable
         {
             Dock = DockStyle.Fill,
             FlowDirection = FlowDirection.LeftToRight,
-            Padding = new Padding(0, 5, 0, 5)
+            WrapContents = true,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Padding = new Padding(0, 4, 0, 8),
+            Margin = new Padding(0)
         };
-        btnProcesar = UIHelper.CrearBotonSecundario("⚙️ Procesar Outbox pendiente", 200);
+
+        btnProcesar = UIHelper.CrearBotonSecundario("⚙️ Procesar Outbox pendiente", 210);
+        btnProcesar.Height = 34;
+        btnProcesar.Margin = new Padding(0, 2, 12, 2);
         btnProcesar.Click += async (_, _) => await ProcesarOutboxAsync();
-        pnlBoton.Controls.Add(btnProcesar);
-        pnlBoton.Controls.Add(new Label
+
+        var lbInfo = new Label
         {
             AutoSize = true,
-            Margin = new Padding(15, 8, 0, 0),
+            MaximumSize = new Size(820, 0),
+            Margin = new Padding(4, 8, 0, 2),
+            Font = UIHelper.FuenteNormal,
+            ForeColor = UIHelper.ColorTextoClaro,
             Text = "Outbox: eventos de negocio (p. ej. PedidoPagado) pendientes de notificar. " +
                    "Auditoría: bitácora de quién hizo qué y cuándo."
-        });
+        };
+
+        pnlBoton.Controls.Add(btnProcesar);
+        pnlBoton.Controls.Add(lbInfo);
         pnlRaiz.Controls.Add(pnlBoton, 0, 0);
 
         // --- Fila 1: Outbox ---
         var grpOutbox = UIHelper.CrearGroupBox("Eventos Outbox (Observer) — últimos 100");
         grpOutbox.Dock = DockStyle.Fill;
+        grpOutbox.Margin = new Padding(0, 0, 0, 10);
+        grpOutbox.Padding = new Padding(10, 18, 10, 10);
+
         dgvOutbox = UIHelper.CrearDataGridView();
         dgvOutbox.Dock = DockStyle.Fill;
-        dgvOutbox.Columns.Add("colId", "ID");
-        dgvOutbox.Columns.Add("colTipo", "Tipo");
-        dgvOutbox.Columns.Add("colCreado", "Creado");
-        dgvOutbox.Columns.Add("colProcesado", "Procesado");
-        dgvOutbox.Columns.Add("colReintentos", "Reintentos");
+        dgvOutbox.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+        var cOId = dgvOutbox.Columns.Add("colId", "ID");
+        var cOTipo = dgvOutbox.Columns.Add("colTipo", "Tipo");
+        var cOCreado = dgvOutbox.Columns.Add("colCreado", "Creado");
+        var cOProc = dgvOutbox.Columns.Add("colProcesado", "Procesado");
+        var cOReit = dgvOutbox.Columns.Add("colReintentos", "Reintentos");
+        dgvOutbox.Columns[cOId].FillWeight = 16;
+        dgvOutbox.Columns[cOTipo].FillWeight = 34;
+        dgvOutbox.Columns[cOCreado].FillWeight = 22;
+        dgvOutbox.Columns[cOProc].FillWeight = 14;
+        dgvOutbox.Columns[cOReit].FillWeight = 14;
+
         grpOutbox.Controls.Add(dgvOutbox);
         pnlRaiz.Controls.Add(grpOutbox, 0, 1);
 
         // --- Fila 2: Auditoría ---
         var grpAuditoria = UIHelper.CrearGroupBox("Auditoría");
         grpAuditoria.Dock = DockStyle.Fill;
+        grpAuditoria.Margin = new Padding(0);
+        grpAuditoria.Padding = new Padding(10, 18, 10, 10);
+
         dgvAuditoria = UIHelper.CrearDataGridView();
         dgvAuditoria.Dock = DockStyle.Fill;
-        dgvAuditoria.Columns.Add("colId", "ID");
-        dgvAuditoria.Columns.Add("colUsuario", "Usuario");
-        dgvAuditoria.Columns.Add("colAccion", "Acción");
-        dgvAuditoria.Columns.Add("colDetalle", "Detalle");
-        dgvAuditoria.Columns.Add("colFecha", "Fecha");
+        dgvAuditoria.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+        var cAId = dgvAuditoria.Columns.Add("colId", "ID");
+        var cAUsu = dgvAuditoria.Columns.Add("colUsuario", "Usuario");
+        var cAAcc = dgvAuditoria.Columns.Add("colAccion", "Acción");
+        var cADet = dgvAuditoria.Columns.Add("colDetalle", "Detalle");
+        var cAFec = dgvAuditoria.Columns.Add("colFecha", "Fecha");
+        dgvAuditoria.Columns[cAId].FillWeight = 14;
+        dgvAuditoria.Columns[cAUsu].FillWeight = 16;
+        dgvAuditoria.Columns[cAAcc].FillWeight = 18;
+        dgvAuditoria.Columns[cADet].FillWeight = 34;
+        dgvAuditoria.Columns[cAFec].FillWeight = 18;
+
         grpAuditoria.Controls.Add(dgvAuditoria);
         pnlRaiz.Controls.Add(grpAuditoria, 0, 2);
 
@@ -149,9 +183,9 @@ public class FrmAuditoria : UserControl, IViewRefrescable
     }
 
     // IViewRefrescable
-    public void OnPedidoConfirmado(Guid pedidoId) => CargarDatosAsync().ConfigureAwait(false);
+    public void OnPedidoConfirmado(Guid pedidoId) => _ = CargarDatosAsync();
     public void OnStockModificado() { }
     public void OnCatalogoActualizado() { }
-    public void OnDespachoRegistrado(Guid pedidoId) => CargarDatosAsync().ConfigureAwait(false);
-    public void OnDevolucionProcesada(Guid pedidoId) => CargarDatosAsync().ConfigureAwait(false);
+    public void OnDespachoRegistrado(Guid pedidoId) => _ = CargarDatosAsync();
+    public void OnDevolucionProcesada(Guid pedidoId) => _ = CargarDatosAsync();
 }

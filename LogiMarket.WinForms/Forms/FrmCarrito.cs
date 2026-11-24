@@ -66,10 +66,10 @@ public class FrmCarrito : UserControl, IViewRefrescable
         _envioFactory = envioFactory;
         _mediator = mediator;
         _mediator.Registrar(this);
+        _repoPedidos = repoPedidos;
 
         InicializarComponentes();
         Load += CargarCombos;
-        _repoPedidos = repoPedidos;
     }
 
     private void InicializarComponentes()
@@ -152,6 +152,7 @@ public class FrmCarrito : UserControl, IViewRefrescable
             _pedidoActual = null;
             _pilaDeshacer.Clear();
             _pilaRehacer.Clear();
+            EstablecerEdicionHabilitada(true);
             RefrescarGrid();
             ResetearResumen();
         };
@@ -210,7 +211,6 @@ public class FrmCarrito : UserControl, IViewRefrescable
         pnlInferior.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 28));
 
         // --- Grupo Resumen ---
-        // --- Grupo Resumen ---
         grpTotales = UIHelper.CrearGroupBox("Resumen del pedido");
         grpTotales.Dock = DockStyle.Fill;
         grpTotales.AutoSize = true;
@@ -238,7 +238,6 @@ public class FrmCarrito : UserControl, IViewRefrescable
 
         // Fila 0: Subtotal | Estrategia
         var lblSub = UIHelper.CrearLabel("Subtotal:", negrita: true);
-        lblSub.AutoSize = true;
         lblSub.Anchor = AnchorStyles.Left | AnchorStyles.None;
         pnlTotales.Controls.Add(lblSub, 0, 0);
 
@@ -252,7 +251,6 @@ public class FrmCarrito : UserControl, IViewRefrescable
         pnlTotales.Controls.Add(lbSubtotal, 1, 0);
 
         var lblEst = UIHelper.CrearLabel("Estrategia:", negrita: true);
-        lblEst.AutoSize = true;
         lblEst.Anchor = AnchorStyles.Left | AnchorStyles.None;
         pnlTotales.Controls.Add(lblEst, 2, 0);
 
@@ -267,7 +265,6 @@ public class FrmCarrito : UserControl, IViewRefrescable
 
         // Fila 1: Descuento | Envío
         var lblDesc = UIHelper.CrearLabel("Descuento:", negrita: true);
-        lblDesc.AutoSize = true;
         lblDesc.Anchor = AnchorStyles.Left | AnchorStyles.None;
         pnlTotales.Controls.Add(lblDesc, 0, 1);
 
@@ -281,7 +278,6 @@ public class FrmCarrito : UserControl, IViewRefrescable
         pnlTotales.Controls.Add(lbDescuento, 1, 1);
 
         lbEnvio = UIHelper.CrearLabel("Envío:", negrita: true);
-        lbEnvio.AutoSize = true;
         lbEnvio.Anchor = AnchorStyles.Left | AnchorStyles.None;
         pnlTotales.Controls.Add(lbEnvio, 2, 1);
 
@@ -294,7 +290,6 @@ public class FrmCarrito : UserControl, IViewRefrescable
 
         // Fila 2: Tarifa
         var lblTar = UIHelper.CrearLabel("Tarifa:", negrita: true);
-        lblTar.AutoSize = true;
         lblTar.Anchor = AnchorStyles.Left | AnchorStyles.None;
         pnlTotales.Controls.Add(lblTar, 0, 2);
 
@@ -309,7 +304,6 @@ public class FrmCarrito : UserControl, IViewRefrescable
 
         // Fila 3: TOTAL
         var lblTot = UIHelper.CrearLabel("TOTAL:", negrita: true);
-        lblTot.AutoSize = true;
         lblTot.Anchor = AnchorStyles.Left | AnchorStyles.None;
         pnlTotales.Controls.Add(lblTot, 0, 3);
 
@@ -326,7 +320,6 @@ public class FrmCarrito : UserControl, IViewRefrescable
 
         grpTotales.Controls.Add(pnlTotales);
         pnlInferior.Controls.Add(grpTotales, 0, 0);
-
 
         // --- Botón Validar (centrado en su celda) ---
         var pnlBotonValidar = new TableLayoutPanel
@@ -353,6 +346,16 @@ public class FrmCarrito : UserControl, IViewRefrescable
         Controls.Add(pnlRaiz);
     }
 
+    private void EstablecerEdicionHabilitada(bool habilitada)
+    {
+        btnAgregar.Enabled = habilitada;
+        btnQuitar.Enabled = habilitada;
+        btnDeshacer.Enabled = habilitada;
+        btnRehacer.Enabled = habilitada;
+        btnClonar.Enabled = habilitada;
+        btnValidar.Enabled = habilitada;
+    }
+
     private void ResetearResumen()
     {
         lbSubtotal.Text = "$ 0.00";
@@ -366,7 +369,6 @@ public class FrmCarrito : UserControl, IViewRefrescable
     {
         try
         {
-            // Conserva la selección actual al recargar (p. ej. tras crear un cliente)
             var clienteSel = cmbClientes.SelectedValue as Guid?;
             var productoSel = cmbProductos.SelectedValue as string;
 
@@ -559,24 +561,17 @@ public class FrmCarrito : UserControl, IViewRefrescable
                 "Éxito", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
             _mediator.NotificarPedidoConfirmado(_pedidoActual.Id);
-
-            // ★ Deshabilitar botones de edición después de validar
-            btnAgregar.Enabled = false;
-            btnQuitar.Enabled = false;
-            btnDeshacer.Enabled = false;
-            btnRehacer.Enabled = false;
-            btnClonar.Enabled = false;  // ← No se puede clonar un pedido validado
-            btnValidar.Enabled = false;
+            EstablecerEdicionHabilitada(false);
         }
         catch (Exception ex)
         {
-            // Mostrar la causa real (EF Core oculta el detalle en InnerException)
             var causa = ex;
             while (causa.InnerException is not null) causa = causa.InnerException;
             MessageBox.Show($"Error de validación: {causa.Message}", "Rechazo",
                 MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
+
     // IViewRefrescable
     public void OnPedidoConfirmado(Guid pedidoId) { }
     public void OnStockModificado() { }
