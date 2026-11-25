@@ -133,7 +133,7 @@ public class FrmLogin : Form
         // --- lbDemo ---
         lbDemo = new Label
         {
-            Text = "Cuentas demo:  admin/admin123  •  vendedor/vendedor123\nbodega/bodega123  •  consulta/consulta123",
+            Text = "Cuentas demo disponibles.\nConsulte el README.md para credenciales de prueba.",
             Font = new Font("Segoe UI", 8, FontStyle.Italic),
             ForeColor = Color.FromArgb(120, 120, 120),
             TextAlign = ContentAlignment.MiddleCenter,

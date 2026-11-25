@@ -5,7 +5,7 @@ using Xunit;
 
 namespace LogiMarket.Tests.Integration;
 
-public class RepositorioClienteTests
+public class TransaccionTests
 {
     [Fact]
     public async Task Agregar_Y_Obtener_Cliente()
