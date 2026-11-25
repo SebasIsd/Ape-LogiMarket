@@ -14,6 +14,7 @@ public class ChainTests
     {
         // El dominio ya impide crear pedidos con clientes inactivos, 
         // así que probamos que un cliente activo pase el validador correctamente.
+
         var cliente = new Cliente("001", "Ana", "ana@test.com", CategoriaCliente.Vip);
         var p1 = new ProductoSimple("P01", "Mouse", new Money(20m), 8, 0.20m);
         var pedido = new Pedido(cliente.Id, cliente, TipoEnvio.Estandar);
