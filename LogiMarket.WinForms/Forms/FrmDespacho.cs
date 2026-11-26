@@ -30,19 +30,19 @@ public class FrmDespacho : UserControl, IViewRefrescable
     private TableLayoutPanel pnlRaiz;
 
     private readonly IRepositorioPedido _repo;
-    private readonly IEnvioAbstractFactory _envioFactory;
     private readonly IFormularioMediator _mediator;
     private readonly IRepositorioAuditoria _auditoria;
     private readonly ISesionUsuario _sesion;
     private Pedido? _pedidoSeleccionado;
+    private readonly EnvioFactoryProvider _envioProvider;
 
-    public FrmDespacho(IRepositorioPedido repo, IEnvioAbstractFactory envioFactory, IFormularioMediator mediator,
+    public FrmDespacho(IRepositorioPedido repo, EnvioFactoryProvider envioProvider, IFormularioMediator mediator,
         IRepositorioAuditoria auditoria, ISesionUsuario sesion)
     {
         _auditoria = auditoria;
         _sesion = sesion;
         _repo = repo;
-        _envioFactory = envioFactory;
+        _envioProvider = envioProvider;
         _mediator = mediator;
         _mediator.Registrar(this);
         InicializarComponentes();
@@ -223,7 +223,7 @@ public class FrmDespacho : UserControl, IViewRefrescable
     private void ActualizarFamiliaEnvio(object? sender, EventArgs e)
     {
         var tipo = cmbTipoEnvio.SelectedIndex == 0 ? TipoEnvio.Estandar : TipoEnvio.Expres;
-        var familia = _envioFactory.Crear(tipo);
+        var familia = _envioProvider.ObtenerFactory(tipo).CrearFamilia();
         lbTarifa.Text = $"$ {familia.CalcularTarifa().Amount:0.00}";
         lbPlazo.Text = $"{familia.PlazoDias} día(s)";
         lbGuia.Text = familia.GenerarGuia();
@@ -240,7 +240,7 @@ public class FrmDespacho : UserControl, IViewRefrescable
         try
         {
             var tipo = cmbTipoEnvio.SelectedIndex == 0 ? TipoEnvio.Estandar : TipoEnvio.Expres;
-            var familia = _envioFactory.Crear(tipo);
+            var familia = _envioProvider.ObtenerFactory(tipo).CrearFamilia();
             var despacho = new Despacho(_pedidoSeleccionado.Id, familia.GenerarGuia(), familia.Nombre, familia.PlazoDias);
             _pedidoSeleccionado.Despachar(despacho);
             await _repo.ActualizarAsync(_pedidoSeleccionado);

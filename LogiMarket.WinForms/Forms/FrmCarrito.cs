@@ -43,7 +43,6 @@ public class FrmCarrito : UserControl, IViewRefrescable
     private readonly IRepositorioCatalogo _catalogo;
     private readonly IRepositorioCliente _repoClientes;
     private readonly CalculadoraDescuentoContext _descuentos;
-    private readonly IEnvioAbstractFactory _envioFactory;
     private readonly IFormularioMediator _mediator;
     private readonly IRepositorioPedido _repoPedidos;
 
@@ -59,7 +58,6 @@ public class FrmCarrito : UserControl, IViewRefrescable
         IRepositorioCatalogo catalogo,
         IRepositorioCliente repoClientes,
         CalculadoraDescuentoContext descuentos,
-        IEnvioAbstractFactory envioFactory,
         IFormularioMediator mediator,
         IRepositorioPedido repoPedidos,
         EnvioFactoryProvider envioProvider)
@@ -67,14 +65,13 @@ public class FrmCarrito : UserControl, IViewRefrescable
         _catalogo = catalogo;
         _repoClientes = repoClientes;
         _descuentos = descuentos;
-        _envioFactory = envioFactory;
         _mediator = mediator;
         _mediator.Registrar(this);
         _repoPedidos = repoPedidos;
-
+        _envioProvider = envioProvider;
         InicializarComponentes();
         Load += CargarCombos;
-        _envioProvider = envioProvider;
+        
     }
 
     private static string ObtenerMensaje(Exception ex)

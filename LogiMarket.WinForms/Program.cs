@@ -161,7 +161,7 @@ internal static class Program
             new CalculadoraDescuentoContext(sp.GetServices<IDescuentoStrategy>()));
 
         // --- Abstract Factory de envíos ---
-        services.AddSingleton<IEnvioAbstractFactory, EnvioFactory>();
+        services.AddSingleton<EnvioFactoryProvider>();
 
         // --- Factory Method de notificadores ---
         services.AddSingleton<LogDeNotificaciones>();
@@ -199,7 +199,6 @@ internal static class Program
         services.AddScoped<IAuthService, AuthService>();
 
         // --- Observer (Outbox) ---
-        services.AddScoped<IPublisher, OutboxPublisher>();
         services.AddScoped<OutboxProcessor>();
 
         // --- Carrito de compras (sesión) ---

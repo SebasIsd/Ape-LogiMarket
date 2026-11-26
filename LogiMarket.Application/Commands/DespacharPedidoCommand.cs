@@ -12,15 +12,15 @@ public class DespacharPedidoCommand : ICommand<ResultadoOperacion>
     private readonly Guid _pedidoId;
     private readonly TipoEnvio _tipoEnvio;
     private readonly IRepositorioPedido _repo;
-    private readonly IEnvioAbstractFactory _envioFactory;
+    private readonly EnvioFactoryProvider _envioProvider;  // ← provider
 
     public DespacharPedidoCommand(Guid pedidoId, TipoEnvio tipoEnvio,
-        IRepositorioPedido repo, IEnvioAbstractFactory envioFactory)
+        IRepositorioPedido repo, EnvioFactoryProvider envioProvider)
     {
         _pedidoId = pedidoId;
         _tipoEnvio = tipoEnvio;
         _repo = repo;
-        _envioFactory = envioFactory;
+        _envioProvider = envioProvider;
     }
 
     public async Task<ResultadoOperacion> ExecuteAsync(CancellationToken ct = default)
@@ -28,12 +28,10 @@ public class DespacharPedidoCommand : ICommand<ResultadoOperacion>
         var pedido = await _repo.ObtenerPorIdAsync(_pedidoId, ct)
             ?? throw new DomainException("Pedido no encontrado");
 
-        var familia = _envioFactory.Crear(_tipoEnvio);
+        var familia = _envioProvider.ObtenerFactory(_tipoEnvio).CrearFamilia(); 
         var despacho = new Despacho(pedido.Id, familia.GenerarGuia(), familia.Nombre, familia.PlazoDias);
-
         pedido.Despachar(despacho);
         await _repo.ActualizarAsync(pedido, ct);
-
         return ResultadoOperacion.Ok($"Pedido despachado con guía {despacho.Guia}");
     }
 }
