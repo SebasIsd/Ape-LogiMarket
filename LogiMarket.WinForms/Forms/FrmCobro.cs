@@ -1,6 +1,7 @@
-﻿using LogiMarket.Application.Facades;
-using LogiMarket.Application.Ports.Persistence;
+﻿using LogiMarket.Application.Commands;
+using LogiMarket.Application.Facades;
 using LogiMarket.Application.Ports.Payments;
+using LogiMarket.Application.Ports.Persistence;
 using LogiMarket.Domain.Entities;
 using LogiMarket.WinForms.Mediator;
 using LogiMarket.WinForms.UI;
@@ -34,15 +35,17 @@ public class FrmCobro : UserControl, IViewRefrescable
     private readonly IRepositorioPedido _repo;
     private readonly ISesionUsuario _sesion;
     private readonly IFormularioMediator _mediator;
+    private readonly ICommandInvoker _commandInvoker;
 
     public FrmCobro(ConfirmacionPedidoFacade facade, IRepositorioPedido repo,
-        ISesionUsuario sesion, IFormularioMediator mediator)
+        ISesionUsuario sesion, IFormularioMediator mediator, ICommandInvoker commandInvoker)
     {
         _facade = facade;
         _repo = repo;
         _sesion = sesion;
         _mediator = mediator;
         _mediator.Registrar(this);
+        _commandInvoker = commandInvoker;
 
         InicializarComponentes();
         Load += CargarPedidosValidados;
@@ -177,7 +180,7 @@ public class FrmCobro : UserControl, IViewRefrescable
 
     private async Task CobrarAsync()
     {
-        if (cmbPedidos.SelectedValue is not Guid id)
+        if (cmbPedidos.SelectedItem is not Guid id)
         {
             MessageBox.Show("Seleccione un pedido.", "Aviso", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
@@ -193,7 +196,10 @@ public class FrmCobro : UserControl, IViewRefrescable
 
         try
         {
-            var resultado = await _facade.ConfirmarAsync(id, txtIdempotencia.Text.Trim());
+            // USAR EL COMMAND
+            var command = new ConfirmarPedidoCommand(id, txtIdempotencia.Text.Trim(), _facade);
+            var resultado = await _commandInvoker.ExecuteAsync(command);
+
             if (resultado.Exito)
             {
                 txtLog.AppendText($"[ÉXITO] Cobro aprobado. Datos: {resultado.Datos}\r\n");

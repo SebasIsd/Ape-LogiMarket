@@ -52,7 +52,8 @@ public class FrmCarrito : UserControl, IViewRefrescable
     private static Pedido? _borradorOriginal;
     private static readonly Stack<Pedido?> _pilaDeshacer = new();
     private static readonly Stack<Pedido?> _pilaRehacer = new();
-    private const int MAX_HISTORIAL = 10;
+    private const int MAX_HISTORIAL = 5;
+    private readonly EnvioFactoryProvider _envioProvider;
 
     public FrmCarrito(
         IRepositorioCatalogo catalogo,
@@ -60,7 +61,8 @@ public class FrmCarrito : UserControl, IViewRefrescable
         CalculadoraDescuentoContext descuentos,
         IEnvioAbstractFactory envioFactory,
         IFormularioMediator mediator,
-        IRepositorioPedido repoPedidos)
+        IRepositorioPedido repoPedidos,
+        EnvioFactoryProvider envioProvider)
     {
         _catalogo = catalogo;
         _repoClientes = repoClientes;
@@ -72,6 +74,7 @@ public class FrmCarrito : UserControl, IViewRefrescable
 
         InicializarComponentes();
         Load += CargarCombos;
+        _envioProvider = envioProvider;
     }
 
     private static string ObtenerMensaje(Exception ex)
@@ -530,16 +533,25 @@ public class FrmCarrito : UserControl, IViewRefrescable
 
         try
         {
+            // 1. Calcular unidades físicas finales (necesario para el Strategy de descuento)
             var unidades = _pedidoActual.UnidadesFisicasFinales();
+
+            // 2. Determinar categoría del cliente
             var cliente = (Cliente?)cmbClientes.SelectedItem;
             var categoria = cliente?.Categoria ?? CategoriaCliente.Normal;
 
+            // 3. Aplicar Descuento (Strategy)
             var (estrategia, descuento) = _descuentos.Calcular(_pedidoActual.Subtotal, unidades, categoria);
-            var familia = _envioFactory.Crear(cmbEnvio.SelectedIndex == 0 ? TipoEnvio.Estandar : TipoEnvio.Expres);
-
             _pedidoActual.AplicarDescuento(descuento, estrategia.Nombre);
-            _pedidoActual.AplicarTarifa(familia.CalcularTarifa());
 
+            // 4. Aplicar Tarifa de envío (Abstract Factory)
+            var tipo = cmbEnvio.SelectedIndex == 0 ? TipoEnvio.Estandar : TipoEnvio.Expres;
+            IEnvioAbstractFactory factory = _envioProvider.ObtenerFactory(tipo);
+            IFamiliaEnvio familia = factory.CrearFamilia();
+
+            _pedidoActual.AplicarTarifa(familia.CalcularTarifa()); // ← Se aplica UNA sola vez
+
+            // 5. Actualizar la interfaz de usuario
             lbSubtotal.Text = $"$ {_pedidoActual.Subtotal.Amount:0.00}";
             lbDescuento.Text = $"$ {_pedidoActual.Descuento.Amount:0.00}";
             lbEstrategia.Text = _pedidoActual.EstrategiaDescuentoAplicada;
@@ -564,16 +576,34 @@ public class FrmCarrito : UserControl, IViewRefrescable
         }
     }
 
-    // --- MEMENTO ---
+    // ==========================================
+    // MEMENTO (Deshacer / Rehacer hasta 5 estados)
+    // ==========================================
+
     private static void GuardarEnPilaDeshacer(Pedido? snapshot)
     {
+        //se guarda el estado actual (snapshot) en el tope de la pila
         _pilaDeshacer.Push(snapshot);
+
+        //si excedemos el límite de 5, debemos eliminar el estado más antiguo (el fondo de la pila)
         if (_pilaDeshacer.Count > MAX_HISTORIAL)
         {
-            var temp = _pilaDeshacer.ToArray();
-            _pilaDeshacer.Clear();
-            for (int i = temp.Length - 1; i >= 0; i--)
-                _pilaDeshacer.Push(temp[i]);
+            // Extraemos todo para poder manipular el fondo
+            var lista = new List<Pedido?>();
+            while (_pilaDeshacer.Count > 0)
+            {
+                lista.Add(_pilaDeshacer.Pop());
+            }
+
+            // 'lista' ahora tiene: [más reciente, ..., más antiguo]
+            // Eliminamos el más antiguo (el último elemento de la lista)
+            lista.RemoveAt(lista.Count - 1);
+
+            // Restauramos la pila en orden inverso para que el más reciente quede en el tope
+            for (int i = lista.Count - 1; i >= 0; i--)
+            {
+                _pilaDeshacer.Push(lista[i]);
+            }
         }
     }
 
@@ -588,10 +618,17 @@ public class FrmCarrito : UserControl, IViewRefrescable
 
         try
         {
+            // Guardamos el estado actual en la pila de Rehacer antes de sobrescribirlo
             _pilaRehacer.Push(_pedidoActual is not null ? (Pedido)_pedidoActual.Clone() : null);
+
+            // Recuperamos el estado anterior
             _pedidoActual = _pilaDeshacer.Pop();
+
             Recalcular();
             RefrescarGrid();
+
+            // Habilitar/deshabilitar botones según si el estado recuperado es BORRADOR
+            EstablecerEdicionHabilitada(_pedidoActual?.EstadoActual == "BORRADOR");
         }
         catch (Exception ex)
         {
@@ -610,10 +647,16 @@ public class FrmCarrito : UserControl, IViewRefrescable
 
         try
         {
+            // Guardamos el estado actual en Deshacer antes de sobrescribirlo
             _pilaDeshacer.Push(_pedidoActual is not null ? (Pedido)_pedidoActual.Clone() : null);
+
+            // Recuperamos el estado futuro
             _pedidoActual = _pilaRehacer.Pop();
+
             Recalcular();
             RefrescarGrid();
+
+            EstablecerEdicionHabilitada(_pedidoActual?.EstadoActual == "BORRADOR");
         }
         catch (Exception ex)
         {

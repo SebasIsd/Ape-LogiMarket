@@ -8,23 +8,28 @@ using LogiMarket.Application.Ports.Documents;
 using LogiMarket.Application.Ports.Notifications;
 using LogiMarket.Application.Ports.Payments;
 using LogiMarket.Application.Ports.Persistence;
+using LogiMarket.Application.Ports.Security;
 using LogiMarket.Application.Shipping;
 using LogiMarket.Application.UseCases.Devoluciones;
 using LogiMarket.Application.Validation;
 using LogiMarket.Infrastructure.Catalog;
 using LogiMarket.Infrastructure.Documents;
+using LogiMarket.Infrastructure.Events;
+using LogiMarket.Infrastructure.Events.Subscribers;
 using LogiMarket.Infrastructure.Notifications;
 using LogiMarket.Infrastructure.Outbox;
 using LogiMarket.Infrastructure.Payments;
 using LogiMarket.Infrastructure.Persistence;
 using LogiMarket.Infrastructure.Persistence.Repositories;
 using LogiMarket.Infrastructure.Persistence.Seed;
+using LogiMarket.Infrastructure.Security;
 using LogiMarket.WinForms.Forms;
 using LogiMarket.WinForms.Mediator;
 using LogiMarket.WinForms.UI;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using System.Numerics;
 using System.Windows.Forms;
 
 namespace LogiMarket.WinForms;
@@ -182,6 +187,16 @@ internal static class Program
 
         // --- Command Invoker ---
         services.AddScoped<ICommandInvoker, CommandInvoker>();
+
+        //Observer EventBus y suscriptores
+        services.AddScoped<IPublisher, EventBus>();
+        services.AddScoped<ISubscriber<PedidoPagadoEvent>, MetricasSubscriber>();
+        services.AddScoped<ISubscriber<PedidoPagadoEvent>, NotificacionSubscriber>();
+        services.AddScoped<ISubscriber<PedidoPagadoEvent>, AuditoriaSubscriber>();
+
+        // --- AuthService ---
+        // ✅ Inyección de dependencia de AuthService para verificar contraseñas y generar hashes
+        services.AddScoped<IAuthService, AuthService>();
 
         // --- Observer (Outbox) ---
         services.AddScoped<IPublisher, OutboxPublisher>();

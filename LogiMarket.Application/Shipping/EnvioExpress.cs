@@ -1,6 +1,7 @@
-﻿using LogiMarket.Application.Shipping;
-using LogiMarket.Domain.ValueObjects;
+﻿using LogiMarket.Domain.ValueObjects;
+
 namespace LogiMarket.Application.Shipping;
+
 public class EnvioExpres : IFamiliaEnvio
 {
     public string Nombre => "EXPRÉS";

@@ -1,7 +1,7 @@
 ﻿using LogiMarket.Application.Ports.Persistence;
 using LogiMarket.Application.Ports.Payments;
-using LogiMarket.Infrastructure.Security;
 using System.Windows.Forms;
+using LogiMarket.Application.Ports.Security;
 
 namespace LogiMarket.WinForms.Forms;
 
@@ -22,11 +22,13 @@ public class FrmLogin : Form
 
     private readonly IRepositorioUsuario _repoUsuario;
     private readonly ISesionUsuario _sesion;
+    private readonly IAuthService _authService;
 
-    public FrmLogin(IRepositorioUsuario repoUsuario, ISesionUsuario sesion)
+    public FrmLogin(IRepositorioUsuario repoUsuario, ISesionUsuario sesion, IAuthService authService)
     {
         _repoUsuario = repoUsuario;
         _sesion = sesion;
+        _authService = authService;
 
         InicializarComponentes();
     }
@@ -214,7 +216,7 @@ public class FrmLogin : Form
         {
             var usuario = await _repoUsuario.ObtenerPorUsernameAsync(txtUsuario.Text.Trim());
             if (usuario is null || !usuario.Activo ||
-                !PasswordHasher.Verify(txtClave.Text, usuario.PasswordHash))
+                !await _authService.VerifyPasswordAsync(txtClave.Text, usuario.PasswordHash))
             {
                 MessageBox.Show("Credenciales inválidas o usuario inactivo.",
                     "Acceso denegado", MessageBoxButtons.OK, MessageBoxIcon.Error);
