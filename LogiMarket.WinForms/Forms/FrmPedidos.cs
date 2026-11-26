@@ -222,33 +222,17 @@ public class FrmPedidos : UserControl, IViewRefrescable
         {
             if (dgvPedidos.CurrentRow is null)
             {
-                MessageBox.Show("Seleccione un pedido de la tabla.", "Aviso",
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show("Seleccione un pedido de la tabla.", "Aviso", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
             var idStr = dgvPedidos.CurrentRow.Cells["colId"].Value?.ToString();
             var resumen = _pedidosDto.FirstOrDefault(p => p.Id.ToString("N")[..8] == idStr);
             if (resumen is null) return;
 
-            // Obtener agregado completo del repo
+            // Recarga el agregado completo (líneas, pago, despacho, devolución)
             var pedido = await _repo.ObtenerPorIdAsync(resumen.Id);
-            if (pedido is null) return;
-
-            var sb = new System.Text.StringBuilder();
-            sb.AppendLine($"Pedido: {pedido.Id:N}");
-            sb.AppendLine($"Cliente: {pedido.Cliente?.Nombre ?? "—"}");
-            sb.AppendLine($"Estado: {pedido.EstadoActual}");
-            sb.AppendLine($"Subtotal: $ {pedido.Subtotal.Amount:0.00}");
-            sb.AppendLine($"Descuento: $ {pedido.Descuento.Amount:0.00} ({pedido.EstrategiaDescuentoAplicada})");
-            sb.AppendLine($"Tarifa: $ {pedido.TarifaEnvio.Amount:0.00}");
-            sb.AppendLine($"TOTAL: $ {pedido.Total.Amount:0.00}");
-            sb.AppendLine();
-            sb.AppendLine("Líneas:");
-            foreach (var d in pedido.Detalles)
-                sb.AppendLine($"  • {d.Sku} - {d.Nombre} x{d.Cantidad} = ${d.SubtotalLinea.Amount:0.00}");
-
-            MessageBox.Show(sb.ToString(), $"Detalle del pedido {resumen.Id.ToString("N")[..8]}",
-                MessageBoxButtons.OK, MessageBoxIcon.Information);
+            using var dlg = new FrmDetallePedido(pedido);
+            dlg.ShowDialog(FindForm());
         }
         catch (Exception ex)
         {
