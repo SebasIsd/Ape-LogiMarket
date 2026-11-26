@@ -1,9 +1,11 @@
-﻿using LogiMarket.WinForms.Mediator;
+﻿using LogiMarket.Application.Commands;
+using LogiMarket.Application.DTOs;
 using LogiMarket.Application.Ports.Persistence;
 using LogiMarket.Domain.Entities;
+using LogiMarket.WinForms.Interpreter;
+using LogiMarket.WinForms.Mediator;
 using LogiMarket.WinForms.UI;
 using System.Windows.Forms;
-using LogiMarket.WinForms.Interpreter;
 
 namespace LogiMarket.WinForms.Forms;
 
@@ -25,15 +27,23 @@ public class FrmPedidos : UserControl, IViewRefrescable
     private Label lbTarifa;
     private Label lbTotal;
     private Label lbEstrategia;
-    private Label lbPago;
     private TableLayoutPanel pnlRaiz;
 
+    // --- CQRS: Query para lectura de lista ---
+    private readonly IQuery<IReadOnlyList<PedidoDto>> _obtenerPedidosQuery;
+    // --- Repo: solo para obtener agregado completo (detalle / filtro) ---
     private readonly IRepositorioPedido _repo;
     private readonly IFormularioMediator _mediator;
-    private List<Pedido> _pedidos = new();
 
-    public FrmPedidos(IRepositorioPedido repo, IFormularioMediator mediator)
+    private List<PedidoDto> _pedidosDto = new();
+    private List<Pedido> _pedidosDominio = new(); // cache para Interpreter
+
+    public FrmPedidos(
+        IQuery<IReadOnlyList<PedidoDto>> obtenerPedidosQuery,
+        IRepositorioPedido repo,
+        IFormularioMediator mediator)
     {
+        _obtenerPedidosQuery = obtenerPedidosQuery;
         _repo = repo;
         _mediator = mediator;
         _mediator.Registrar(this);
@@ -63,19 +73,19 @@ public class FrmPedidos : UserControl, IViewRefrescable
         lbFiltro.Location = new Point(0, 8);
 
         txtFiltro = UIHelper.CrearTextBox(400);
-        txtFiltro.Location = new Point(130, 5);
+        txtFiltro.Location = new Point(140, 5);
         txtFiltro.PlaceholderText = "Ej: ESTADO = PAGADO AND TOTAL >= 50";
 
         btnFiltrar = UIHelper.CrearBotonPrimario("Filtrar", 90);
-        btnFiltrar.Location = new Point(540, 4);
+        btnFiltrar.Location = new Point(550, 4);
         btnFiltrar.Click += async (_, _) => await CargarPedidosAsync();
 
         btnLimpiar = UIHelper.CrearBotonGris("Limpiar", 80);
-        btnLimpiar.Location = new Point(640, 4);
+        btnLimpiar.Location = new Point(650, 4);
         btnLimpiar.Click += async (_, _) => { txtFiltro.Clear(); await CargarPedidosAsync(); };
 
         btnVerDetalle = UIHelper.CrearBotonSecundario("Ver detalle", 110);
-        btnVerDetalle.Location = new Point(730, 4);
+        btnVerDetalle.Location = new Point(740, 4);
         btnVerDetalle.Click += async (_, _) => await AbrirDetalleAsync();
 
         dgvPedidos = UIHelper.CrearDataGridView();
@@ -83,7 +93,6 @@ public class FrmPedidos : UserControl, IViewRefrescable
         dgvPedidos.Size = new Size(pnlSuperior.Width - 20, pnlSuperior.Height - 55);
         dgvPedidos.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom;
         dgvPedidos.SelectionChanged += (_, _) => MostrarDetalle();
-        dgvPedidos.CellDoubleClick += async (_, e) => { if (e.RowIndex >= 0) await AbrirDetalleAsync(); };
 
         pnlSuperior.Controls.AddRange(new Control[] { lbFiltro, txtFiltro, btnFiltrar, btnLimpiar, btnVerDetalle, dgvPedidos });
         pnlSuperior.Resize += (_, _) => dgvPedidos.Size = new Size(pnlSuperior.Width - 20, pnlSuperior.Height - 55);
@@ -150,15 +159,30 @@ public class FrmPedidos : UserControl, IViewRefrescable
     {
         try
         {
-            _pedidos = (await _repo.ListarAsync()).ToList();
+            // CQRS: usar el Query para obtener la lista (lectura)
+            _pedidosDto = (await _obtenerPedidosQuery.ExecuteAsync()).ToList();
 
-            // Interpreter: aplicar filtro si existe
+            // Cache de dominio para Interpreter (solo si hay filtro)
+            _pedidosDominio = new List<Pedido>();
+
+            var listaMostrar = _pedidosDto.AsEnumerable();
+
+            // Interpreter: aplicar filtro si existe (necesita dominio)
             if (!string.IsNullOrWhiteSpace(txtFiltro.Text))
             {
                 try
                 {
+                    // Cargar dominio solo si hay filtro
+                    if (_pedidosDominio.Count == 0)
+                    {
+                        var todos = await _repo.ListarAsync();
+                        _pedidosDominio = todos.ToList();
+                    }
+
                     var filtro = InterpreterFiltro.Parse(txtFiltro.Text.Trim());
-                    _pedidos = _pedidos.Where(p => filtro.Evaluar(p)).ToList();
+                    var filtrados = _pedidosDominio.Where(p => filtro.Evaluar(p)).ToList();
+                    var idsFiltrados = filtrados.Select(p => p.Id).ToHashSet();
+                    listaMostrar = _pedidosDto.Where(p => idsFiltrados.Contains(p.Id));
                 }
                 catch (Exception ex)
                 {
@@ -176,14 +200,14 @@ public class FrmPedidos : UserControl, IViewRefrescable
             dgvPedidos.Columns.Add("colFecha", "Fecha");
             dgvPedidos.Columns.Add("colTotal", "Total");
 
-            foreach (var p in _pedidos)
+            foreach (var p in listaMostrar)
             {
                 dgvPedidos.Rows.Add(
                     p.Id.ToString("N")[..8],
-                    p.Cliente?.Nombre ?? "—",
-                    p.EstadoActual,
+                    p.ClienteNombre,
+                    p.Estado,
                     p.FechaCreacion.ToString("yyyy-MM-dd HH:mm"),
-                    p.Total.Amount.ToString("0.00"));
+                    p.Total.ToString("0.00"));
             }
         }
         catch (Exception ex)
@@ -198,17 +222,33 @@ public class FrmPedidos : UserControl, IViewRefrescable
         {
             if (dgvPedidos.CurrentRow is null)
             {
-                MessageBox.Show("Seleccione un pedido de la tabla.", "Aviso", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show("Seleccione un pedido de la tabla.", "Aviso",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
             var idStr = dgvPedidos.CurrentRow.Cells["colId"].Value?.ToString();
-            var resumen = _pedidos.FirstOrDefault(p => p.Id.ToString("N")[..8] == idStr);
+            var resumen = _pedidosDto.FirstOrDefault(p => p.Id.ToString("N")[..8] == idStr);
             if (resumen is null) return;
 
-            // Recarga el agregado completo (líneas, pago, despacho, devolución)
-            var pedido = await _repo.ObtenerPorIdAsync(resumen.Id) ?? resumen;
-            using var dlg = new FrmDetallePedido(pedido);
-            dlg.ShowDialog(FindForm());
+            // Obtener agregado completo del repo
+            var pedido = await _repo.ObtenerPorIdAsync(resumen.Id);
+            if (pedido is null) return;
+
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine($"Pedido: {pedido.Id:N}");
+            sb.AppendLine($"Cliente: {pedido.Cliente?.Nombre ?? "—"}");
+            sb.AppendLine($"Estado: {pedido.EstadoActual}");
+            sb.AppendLine($"Subtotal: $ {pedido.Subtotal.Amount:0.00}");
+            sb.AppendLine($"Descuento: $ {pedido.Descuento.Amount:0.00} ({pedido.EstrategiaDescuentoAplicada})");
+            sb.AppendLine($"Tarifa: $ {pedido.TarifaEnvio.Amount:0.00}");
+            sb.AppendLine($"TOTAL: $ {pedido.Total.Amount:0.00}");
+            sb.AppendLine();
+            sb.AppendLine("Líneas:");
+            foreach (var d in pedido.Detalles)
+                sb.AppendLine($"  • {d.Sku} - {d.Nombre} x{d.Cantidad} = ${d.SubtotalLinea.Amount:0.00}");
+
+            MessageBox.Show(sb.ToString(), $"Detalle del pedido {resumen.Id.ToString("N")[..8]}",
+                MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         catch (Exception ex)
         {
@@ -220,17 +260,17 @@ public class FrmPedidos : UserControl, IViewRefrescable
     {
         if (dgvPedidos.CurrentRow is null) return;
         var idStr = dgvPedidos.CurrentRow.Cells["colId"].Value?.ToString();
-        var pedido = _pedidos.FirstOrDefault(p => p.Id.ToString("N")[..8] == idStr);
+        var pedido = _pedidosDto.FirstOrDefault(p => p.Id.ToString("N")[..8] == idStr);
         if (pedido is null) return;
 
         lbId.Text = pedido.Id.ToString("N")[..8];
-        lbCliente.Text = pedido.Cliente?.Nombre ?? "—";
-        lbEstado.Text = pedido.EstadoActual;
+        lbCliente.Text = pedido.ClienteNombre;
+        lbEstado.Text = pedido.Estado;
         lbFecha.Text = pedido.FechaCreacion.ToString("yyyy-MM-dd HH:mm");
-        lbSubtotal.Text = $"$ {pedido.Subtotal.Amount:0.00}";
-        lbDescuento.Text = $"$ {pedido.Descuento.Amount:0.00} ({pedido.EstrategiaDescuentoAplicada})";
-        lbTarifa.Text = $"$ {pedido.TarifaEnvio.Amount:0.00}";
-        lbTotal.Text = $"$ {pedido.Total.Amount:0.00}";
+        lbSubtotal.Text = $"$ {pedido.Subtotal:0.00}";
+        lbDescuento.Text = $"$ {pedido.Descuento:0.00} ({pedido.Estrategia})";
+        lbTarifa.Text = $"$ {pedido.Tarifa:0.00}";
+        lbTotal.Text = $"$ {pedido.Total:0.00}";
     }
 
     // IViewRefrescable

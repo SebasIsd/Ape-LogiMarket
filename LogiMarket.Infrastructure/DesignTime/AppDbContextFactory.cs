@@ -1,4 +1,5 @@
-﻿using LogiMarket.Infrastructure.Persistence;
+﻿using LogiMarket.Application.Ports.Persistence;
+using LogiMarket.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 
@@ -14,10 +15,7 @@ public class AppDbContextFactory : IDesignTimeDbContextFactory<AppDbContext>
     public AppDbContext CreateDbContext(string[] args)
     {
         var optionsBuilder = new DbContextOptionsBuilder<AppDbContext>();
-
-        // Cadena de conexión de diseño (base de datos aislada para migraciones)
-        optionsBuilder.UseSqlite("Data Source=logimarket.db");
-
+        optionsBuilder.UseSqlite(DatabaseConfig.ConnectionString);
         return new AppDbContext(optionsBuilder.Options);
     }
 }

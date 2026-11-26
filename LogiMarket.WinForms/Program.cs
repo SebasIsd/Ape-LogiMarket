@@ -1,5 +1,6 @@
 ﻿using LogiMarket.Application.Commands;
 using LogiMarket.Application.Discount;
+using LogiMarket.Application.DTOs;
 using LogiMarket.Application.Events;
 using LogiMarket.Application.Facades;
 using LogiMarket.Application.Metrics;
@@ -9,6 +10,7 @@ using LogiMarket.Application.Ports.Notifications;
 using LogiMarket.Application.Ports.Payments;
 using LogiMarket.Application.Ports.Persistence;
 using LogiMarket.Application.Ports.Security;
+using LogiMarket.Application.Queries;
 using LogiMarket.Application.Shipping;
 using LogiMarket.Application.UseCases.Devoluciones;
 using LogiMarket.Application.Validation;
@@ -117,7 +119,7 @@ internal static class Program
     {
         // --- EF Core + SQLite ---
         services.AddDbContext<AppDbContext>(options =>
-            options.UseSqlite("Data Source=logimarket.db"));
+            options.UseSqlite(DatabaseConfig.ConnectionString));
 
         // --- Unit of Work ---
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<AppDbContext>());
@@ -187,6 +189,9 @@ internal static class Program
 
         // --- Command Invoker ---
         services.AddScoped<ICommandInvoker, CommandInvoker>();
+
+        // CQRS - Queries
+        services.AddScoped<IQuery<IReadOnlyList<PedidoDto>>, ObtenerPedidosQuery>();
 
         //Observer EventBus y suscriptores
         services.AddScoped<IPublisher, EventBus>();

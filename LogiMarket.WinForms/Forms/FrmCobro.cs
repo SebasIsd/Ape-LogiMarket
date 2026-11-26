@@ -180,7 +180,8 @@ public class FrmCobro : UserControl, IViewRefrescable
 
     private async Task CobrarAsync()
     {
-        if (cmbPedidos.SelectedItem is not Guid id)
+        // ahora usamos el command invoker para ejecutar el comando de cobro
+        if (cmbPedidos.SelectedValue is not Guid id)
         {
             MessageBox.Show("Seleccione un pedido.", "Aviso", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
